@@ -8,34 +8,33 @@ version = "2023.0.0"
 description = "Quantum Phase Transition Explorer in Python"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "BSD-3-Clause"}
+license = {file = "LICENSE"}
 authors = [
-    {name="Francesco Di Marcantonio", mail="francesco.di.marcantonio@cern.ch"},
-    {name="Nicola Mariella", mail="aljabr0101@gmail.com"},
+    {name="Francesco Di Marcantonio", email="francesco.di.marcantonio@cern.ch"},
+    {name="Nicola Mariella", email="aljabr0101@gmail.com"},
     ]
 maintainers = [
-    {name="Francesco Di Marcantonio", mail="francesco.di.marcantonio@cern.ch"}
+    {name="Francesco Di Marcantonio", email="francesco.di.marcantonio@cern.ch"}
 ]
 keywords = ["quantum phase transition", "quantum many-body system", "quantum machine learning", "quantum kernel", "Uhlmann distance"]
 classifiers = [
-    License :: OSI Approved :: BSD License
-    Operating System :: Microsoft :: Windowss
-    Topic :: Scientific/Engineering :: Physics
-    Programming Language :: Python :: 3.12
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Programming Language :: Python :: 3.12"
 ]
+
 dependencies = [
   "numpy",
   "scipy",
 ]
 
-dynamic = ["version", "readme"]
-
 [project.urls]
 Repository = "https://github.com/Fradm98/qupytex.git"
 
+
+[project.scripts]
+qupytex-Uhlmann = "qupytex:uhlmann_kernel"
+
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.setuptools.dynamic]
-version = {attr = "qupytex.VERSION"}
-readme = {file = "README.md"}
