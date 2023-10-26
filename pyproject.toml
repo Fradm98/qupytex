@@ -28,29 +28,10 @@ dependencies = [
   "scipy",
 ]
 
-dynamic = ["version", "readme", "dependencies"]
-
-# [project.optional-dependencies]
-# gui = ["PyQt5"]
-# cli = [
-#   "rich",
-#   "click",
-# ]
+dynamic = ["version", "readme"]
 
 [project.urls]
-# Homepage = "https://github.com/Fradm98/qupytex.git"
-# Documentation = "https://readthedocs.org"
 Repository = "https://github.com/Fradm98/qupytex.git"
-# Changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
-
-# [project.scripts]
-# spam-cli = "spam:main_cli"
-
-# [project.gui-scripts]
-# spam-gui = "spam:main_gui"
-
-# [project.entry-points."spam.magical"]
-# tomatoes = "spam:main_tomatoes"
 
 [tool.setuptools.packages.find]
 where = ["src"]
