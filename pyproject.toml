@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools >= 68.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qupytex"
+version = "2023.0.0"
+description = "Quantum Phase Transition Explorer in Python"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "BSD-3-Clause"}
+authors = [
+    {name="Francesco Di Marcantonio", mail="francesco.di.marcantonio@cern.ch"},
+    {name="Nicola Mariella", mail="aljabr0101@gmail.com"},
+    ]
+maintainers = [
+    {name="Francesco Di Marcantonio", mail="francesco.di.marcantonio@cern.ch"}
+]
+keywords = ["quantum phase transition", "quantum many-body system", "quantum machine learning", "quantum kernel", "Uhlmann distance"]
+classifiers = [
+    License :: OSI Approved :: BSD License
+    Operating System :: Microsoft :: Windowss
+    Topic :: Scientific/Engineering :: Physics
+    Programming Language :: Python :: 3.12
+]
+dependencies = [
+  "numpy",
+  "gidgethub[httpx]>4.0.0",
+  "django>2.1; os_name != 'nt'",
+  "django>2.0; os_name == 'nt'",
+]
+
+dynamic = ["version", "description", "dependencies"]
+
+[project.optional-dependencies]
+gui = ["PyQt5"]
+cli = [
+  "rich",
+  "click",
+]
+
+[project.urls]
+# Homepage = "https://github.com/Fradm98/qupytex.git"
+# Documentation = "https://readthedocs.org"
+Repository = "https://github.com/Fradm98/qupytex.git"
+# Changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
+
+[project.scripts]
+spam-cli = "spam:main_cli"
+
+[project.gui-scripts]
+spam-gui = "spam:main_gui"
+
+[project.entry-points."spam.magical"]
+tomatoes = "spam:main_tomatoes"
+
+[tool.setuptools.packages.find]
+where = ["src"]
