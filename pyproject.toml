@@ -27,7 +27,8 @@ classifiers = [
 dependencies = [
   "numpy",
   "scipy",
-  "qs-mps"
+  "qs-mps",
+  "scikit-learn",
 ]
 
 [project.urls]
