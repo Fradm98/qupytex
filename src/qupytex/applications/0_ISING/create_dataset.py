@@ -47,6 +47,7 @@ X = []
 Y = []
 print('find the rdms and assign labels...')
 for h in interval:
+    print(f'h: {h:.{precision}f}')
     d = 2
     chain = MPS(L=args.L, d=d, model=args.model, chi=args.chi, h=h)
     chain.load_sites(path=path_drive, precision=precision)
