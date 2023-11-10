@@ -1,7 +1,7 @@
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from qupytex.uhlmann_kernel import uhlmann_fidelity_1q
-from qs_mps.utils import get_precision, load_list_of_lists
+from qs_mps.utils import get_precision, load_list_of_lists, create_sequential_colors, open_rdms
 from scipy.interpolate import UnivariateSpline
 import argparse
 import numpy as np
@@ -52,40 +52,18 @@ else:
 interval = np.linspace(args.h_i, args.h_f, args.npoints).tolist()
 precision = get_precision((args.h_f - args.h_i)/args.npoints)
 
-# X = load_list_of_lists(f"{path_drive}/results/dataset/X_1-rdms_h_{args.h_i}-{args.h_f}_delta_{args.npoints}")
+file_path = f"{path_drive}/results/dataset/X_1-rdms_h_{args.h_i}-{args.h_f}_delta_{args.npoints}"
+X = open_rdms(file_path=file_path)
 Y = np.loadtxt(f"{path_drive}/results/dataset/Y_1-rdms_h_{args.h_i}-{args.h_f}_delta_{args.npoints}")
 
-file_path = f"{path_drive}/results/dataset/X_1-rdms_h_{args.h_i}-{args.h_f}_delta_{args.npoints}"
-with open(file_path, 'r') as file:
-    lines = file.readlines()
-
-X = []
-for line in lines:
-    line1 = line.split(" ")
-    op = '['
-    cl = ']'
-    line2 = []
-    for elem in line1:
-        if len(elem) > 1 and '\n' not in elem:
-            if op in elem:
-                elem = elem.replace(op,'')
-            elif cl in elem:  
-                elem = elem.replace(cl,'')
-
-            line2.append(float(elem))
-        elif len(elem) > 3 and ']\n' in elem:  
-            elem = elem.replace(']\n','')
-            line2.append(float(elem))
-                
-    rdm = np.array(line2).reshape(2,2)
-    X.append(rdm)
-
-# check purity
+# check purity and entropy
 flag = 0
 purities = []
+entropies = []
 for i, rdm in enumerate(X):
     purity = np.trace(rdm @ rdm)
     purities.append(purity)
+    entropies.append(-np.trace(rdm @ np.log2(rdm)))
     print(f"Purity: {purity:.5f} for h: {interval[i]:.{precision}f}")
 
     if purity == 1:
@@ -95,7 +73,7 @@ for i, rdm in enumerate(X):
 print(f"there are {flag} pure rdms in the loaded dataset")
 
 # try the k_2 
-def k_2(purity,delta):
+def k_2(purity: list, delta: int):
     """
     k_2
 
@@ -110,39 +88,46 @@ def k_2(purity,delta):
     """
     k = []
     for i in range(len(purity)-delta):
-        k.append(np.sqrt((1-purity[i])(1-purity[i+delta])))
+        k.append(np.sqrt((1-purity[i])*(1-purity[i+delta])))
     return k
 
-delta = 1
-second_term = k_2(purities, delta)
-chi = 32
-fname_what = f"{path_drive}/results/entropy/{args.L//2}_bond_entropy"
-entropies = np.loadtxt(f"{fname_what}_{args.model}_L_{args.L}_h_{args.h_i}-{args.h_f}_delta_{args.npoints}_chi_{chi}")
+# chi = 32
+# fname_what = f"{path_drive}/results/entropy/{args.L//2}_bond_entropy"
+# entropies = np.loadtxt(f"{fname_what}_{args.model}_L_{args.L}_h_{args.h_i}-{args.h_f}_delta_{args.npoints}_chi_{chi}")
 norm_entropies = entropies/np.max(entropies)
-title = "entropy_vs_purity"
-plt.title(f"Entropy $vs$ Purity of rdms for $L={args.L}$")
+
+interval = interval[100:]
+norm_entropies = norm_entropies[100:]
+purities = purities[100:]
+
+k2 = False
+deltas = [1,2,5,10,100,500]
+colors = create_sequential_colors(num_colors=len(deltas), colormap_name='winter')
+title = "local_entropy_vs_purity"
+plt.title(f"Local Entropy $vs$ Purity of rdms for $L={args.L}$")
 plt.plot(interval, purities, label='purity')
 plt.plot(interval, norm_entropies, label='normalized entropy')
-plt.plot(interval, norm_entropies, label=f'K_2 Uhlmann: $\Delta={delta*precision}$')
+if k2:
+    for i, delta in enumerate(deltas):
+        second_term = k_2(purity=purities, delta=delta)
+        pr = 10**(-precision)
+        plt.plot(interval[:-1-delta+1], second_term, color=colors[i], alpha=0.5, linestyle=':', label=f'K_2 Uhlmann: $\\Delta h ={(delta*pr)}$')
 plt.hlines(y=1/2, xmin=interval[0], xmax=interval[-1], colors='red', linestyles='--', linewidth=1, label='maximally entangled states')
 plt.xlabel("external field (h)")
-plt.ylabel("$S_{\\chi}(h)$ vs Tr$\\left[(\\rho(h))\\right]$")
-plt.legend()
-plt.savefig(f"{path_drive}/figures/purity/{title}_{args.model}_L_{args.L}_h_{args.h_i}-{args.h_f}_delta_{args.npoints}.png")
+plt.ylabel("$S_{\\chi}(h)$ vs Tr$\\left[(\\rho^2(h))\\right]$")
+plt.legend(fontsize=10)
+plt.savefig(f"{path_drive}/figures/purity/{title}_{args.model}_L_{args.L}_h_{args.h_i}-{args.h_f}_delta_{args.npoints}_k2_{k2}.png")
 plt.show()
 
 
 # let us find the second derivative
-interval = interval[100:]
-norm_entropies = norm_entropies[100:]
-purities = purities[100:]
 y_spl_entr = UnivariateSpline(interval,norm_entropies,s=0,k=4)
 y_spl_purity = UnivariateSpline(interval,purities,s=0,k=4)
 
-y_spl_2d_entr = y_spl_entr.derivative(n=2)
+y_spl_1d_entr = y_spl_entr.derivative(n=1)
 y_spl_2d_purity = y_spl_purity.derivative(n=2)
 
-derivative_eval_entr = y_spl_2d_entr(interval)
+derivative_eval_entr = y_spl_1d_entr(interval)
 derivative_eval_purity = y_spl_2d_purity(interval)
 
 zero_crossings_entr = np.where(np.diff(np.sign(derivative_eval_entr)))[0]
@@ -155,9 +140,9 @@ y_purity = np.array([np.nan for _ in range(len(interval))])
 for zero_purity in zero_crossings_purity:
     y_purity[zero_purity] = 0
 
-title = 'second_derivative_entropy_vs_purity'
-plt.title(f"Second derivative of Entropy $vs$ Purity of rdms for $L={args.L}$")
-plt.plot(interval,derivative_eval_entr, color='blue', label='second derivative entropy')
+title = 'first_derivative_entropy_vs_second_derivative_purity'
+plt.title("$\dot{d}$ of Entropy $vs$ $\ddot{d}$ of Purity of rdms for " + f"$L={args.L}$")
+plt.plot(interval,derivative_eval_entr, color='blue', label='first derivative entropy')
 plt.plot(interval,derivative_eval_purity, color='darkorange', label='second derivative purity')
 plt.scatter(interval, y_entr, marker='o', edgecolor='blue', facecolor='none', alpha=0.6, label='zeros entropy')
 plt.scatter(interval, y_purity, marker='o', edgecolor='darkorange', facecolor='none', alpha=0.6, label='zeros purity')

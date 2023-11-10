@@ -58,8 +58,8 @@ for h in interval:
     X.append(d)
     Y.append(y)
 
-save_list_of_lists(f"{path_drive}/results/dataset/X_1-rdms_h_{args.h_i}-{args.h_f}_delta_{args.npoints}", X)
-np.savetxt(f"{path_drive}/results/dataset/Y_1-rdms_h_{args.h_i}-{args.h_f}_delta_{args.npoints}", Y)
+save_list_of_lists(f"{path_drive}/results/dataset/X_1-rdms_L_{args.L}_h_{args.h_i}-{args.h_f}_delta_{args.npoints}", X)
+np.savetxt(f"{path_drive}/results/dataset/Y_1-rdms_L_{args.L}_h_{args.h_i}-{args.h_f}_delta_{args.npoints}", Y)
 
 # # define training sample and labels
 # print('split in train and test...')
