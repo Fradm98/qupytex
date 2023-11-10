@@ -15,5 +15,5 @@ pip install qupytex
 To clone the repository locally, use the following command:
 
 ```bash
-git clone https://github.com/Fradm98/qupytex.git
+git clone git@github.com:Fradm98/qupytex.git
 
