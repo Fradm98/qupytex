@@ -6,6 +6,10 @@ qupytex is a Quantum Phase Transition Explorer Python package that enables resea
 
 You can install qupytex either by cloning the repository or using pip.
 
+```bash
+pip install qupytex
+```
+
 ### Clone the Repository
 
 To clone the repository locally, use the following command:
