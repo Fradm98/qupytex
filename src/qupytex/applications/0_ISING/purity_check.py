@@ -15,9 +15,9 @@ plt.rcParams["font.size"] = 13
 plt.rcParams["figure.dpi"] = 300
 plt.rcParams["figure.constrained_layout.use"] = True
 
-# Binary classification
+# Purity check of local density matrices
 # parameters
-parser = argparse.ArgumentParser(prog="Binary classification")
+parser = argparse.ArgumentParser(prog="Purity Check")
 parser.add_argument("L", help="Spin chain length", type=int)
 parser.add_argument(
     "npoints",
@@ -56,6 +56,49 @@ file_path = f"{path_drive}/results/dataset/X_1-rdms_h_{args.h_i}-{args.h_f}_delt
 X = open_rdms(file_path=file_path)
 Y = np.loadtxt(f"{path_drive}/results/dataset/Y_1-rdms_h_{args.h_i}-{args.h_f}_delta_{args.npoints}")
 
+# check purity and entropy
+flag = 0
+purities = []
+entropies = []
+for i, rdm in enumerate(X):
+    purity = np.trace(rdm @ rdm)
+    purities.append(purity)
+    entropies.append(-np.trace(rdm @ np.log2(rdm)))
+    print(f"Purity: {purity:.5f} for h: {interval[i]:.{precision}f}")
+
+    if purity == 1:
+        flag += 1
+        print(f"Pure for h: {interval[i]:.{precision}f}")
+
+print(f"there are {flag} pure rdms in the loaded dataset")
+
+# try the k_2 
+def k_2(purity: list, delta: int):
+    """
+    k_2
+
+    This function computes the second term in the 1-rdm uhlmann fidelity
+    by taking the purity array of all the computed 1-rdms, and a
+    step of delta.
+
+    purity: list - a list of purities for the rdms in the specific interval of the parameter space
+    delta: int - It is the step in the "index space" of the purity array. 
+            Minimum value is 1
+
+    """
+    k = []
+    for i in range(len(purity)-delta):
+        k.append(np.sqrt((1-purity[i])*(1-purity[i+delta])))
+    return k
+
+chi = 64
+fname_what = f"{path_drive}/results/entropy/{args.L//2}_bond_entropy"
+entropies = np.loadtxt(f"{fname_what}_{args.model}_L_{args.L}_h_{args.h_i}-{args.h_f}_delta_{args.npoints}_chi_{chi}")
+norm_entropies = entropies/np.max(entropies)
+
+interval = interval[100:]
+norm_entropies = norm_entropies[100:]
+purities = purities[100:]
 
 k2 = False
 deltas = [1,2,5,10,100,500]
