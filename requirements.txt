@@ -1,0 +1,9 @@
+ipywidgets
+tqdm
+cvxpy
+matplotlib
+physics-tenpy
+scipy
+numpy
+scikit-learn
+qs-mps
