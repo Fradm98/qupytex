@@ -9,3 +9,5 @@ presentation_slides/*
 *.h5
 logs/*
 .vscode/
+dist/
+*.egg-info
