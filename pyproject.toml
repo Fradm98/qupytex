@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools >= 68.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qupytex"
+version = "0.1.0"
+description = "Quantum Phase Transition Explorer Python is a package to navigate researchers in the characterization of quantum phase transitions of Quantum Many-Body systems"
+readme = "README.md"
+requires-python = ">=3.6"
+license = {file = "LICENSE"}
+authors = [
+    {name="Francesco Di Marcantonio", email="francesco.di.marcantonio@cern.ch"},
+]
+maintainers = [
+    {name="Francesco Di Marcantonio", email="francesco.di.marcantonio@cern.ch"}
+]
+keywords = ["reduced fidelity susceptibility", "tensor network", "matrix product state", "quantum many-body system", "quantum phase transition"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Programming Language :: Python :: 3.12"
+]
+
+dependencies = [
+  "numpy",
+  "scipy",
+  "qsmps",
+  "tenpy",
+  "jupyter",
+  "matplotlib",
+]
+
+[project.urls]
+Repository = "https://github.com/Fradm98/qupytex.git"
+
+[project.optional-dependencies]
+tests = ["pytest", "coverage", "pytest-cov"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
