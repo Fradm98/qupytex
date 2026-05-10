@@ -3,6 +3,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import numpy as np
+from tqdm import tqdm
 from .fidelity import fidelity_laplacian
 from scipy import signal
 import scipy.linalg as la
@@ -46,7 +47,18 @@ def gstates_to_rdms_matrix_qs_mps(gstates, *, sites=None, shape=None, proj_psd=F
     #     print(f"i: {i}")
     #     rdms = generalized_k_rdm(psi, sites=sites)
     if generalized:
-        rdms = [generalized_k_rdm(psi, sites=sites) for psi in gstates]
+        pbar = tqdm(range(len(gstates)), dynamic_ncols=True)
+        rdms = []
+        for idx in pbar:
+
+            # This updates the SAME tqdm line continuously
+            # pbar.set_postfix({
+            #     "lambda1": f"{x:.6f}",
+            #     "lambda2": f"{y:.6f}"
+            # })
+            pbar.set_description(f"rdm comp: {idx+1}")
+            rdms.append(generalized_k_rdm(gstates[idx], sites=sites))
+        # rdms = [generalized_k_rdm(psi, sites=sites) for psi in gstates]
     else:
         rdms = [reduced_density_matrix(psi, sites=sites) for psi in gstates]
     if proj_psd:

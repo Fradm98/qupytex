@@ -47,10 +47,10 @@ l = 15
 n = 10
 params = np.linspace(0.5, 0.6, n), np.linspace(0.6, 0.5, n) # upside-down
 
-model_name = "Cluster"
-l = 50
-n = 64
-params = np.linspace(0.5, 1.5, n), np.linspace(1.5, 0.5, n) # upside-down
+# model_name = "Cluster"
+# l = 50
+# n = 64
+# params = np.linspace(0.5, 1.5, n), np.linspace(1.5, 0.5, n) # upside-down
 
 params = map(lambda m: m.flatten(), np.meshgrid(*params, indexing='xy'))
 params = tuple(params)
@@ -59,7 +59,7 @@ params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
 params_extent = tuple(params_extent[[0, 2, 1, 3]])
 
 device = 'pc'
-device = 'ngt'
+# device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/code"
@@ -170,7 +170,7 @@ for i in range(n):
     list_tot.append(list_row)
 
 grad_g = phases_vfield(list_tot, fidelity='fs', grad=False)
-plt.imshow(grad_g.real)
+plt.imshow(np.abs(grad_g))
 plt.savefig(f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_total_state_no_convol.png")
 
 grad_g = phases_vfield(rdms)
