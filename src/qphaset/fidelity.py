@@ -7,6 +7,7 @@ import numpy as np
 from .linalg import psd_sqrt_safe as sqrtm 
 from functools import partial
 from ncon import ncon
+from qs_mps.utils import tensor_shapes
 
 def _sqrt_safe(v):
     v = np.maximum(v, 0)   # Fix minor numerical errors.
@@ -93,17 +94,42 @@ def fidelity_dxx(rdms: np.ndarray, *, fidelity=None, log=False) -> np.ndarray:
     return f_dxx
 
 
+# def fidelity_diffx(rdms: np.ndarray, *, fidelity=None) -> np.ndarray:
+#     """Compute the fidelity differential along the x axis."""
+#     if fidelity is None:
+#         fidelity = partial(uhlmann_fidelity, sqrt=True)
+#     mn, rdm_sz = rdms.shape[:2], rdms.shape[2]
+#     mat1, mat2 = rdms[:, :-1], rdms[:, 1:]
+#     mat1, mat2 = mat1.reshape((-1, rdm_sz, rdm_sz)), mat2.reshape((-1, rdm_sz, rdm_sz))
+#     f_dx = np.array([fidelity(d1, d2) for d1, d2 in zip(mat1, mat2)])
+#     f_dx = f_dx.reshape((mn[0], mn[1] - 1))
+#     print(f"f_dx shape: ", f_dx.shape)
+#     return f_dx
+
 def fidelity_diffx(rdms: np.ndarray, *, fidelity=None) -> np.ndarray:
     """Compute the fidelity differential along the x axis."""
     if fidelity is None:
         fidelity = partial(uhlmann_fidelity, sqrt=True)
-    mn, rdm_sz = rdms.shape[:2], rdms.shape[2]
-    mat1, mat2 = rdms[:, :-1], rdms[:, 1:]
-    mat1, mat2 = mat1.reshape((-1, rdm_sz, rdm_sz)), mat2.reshape((-1, rdm_sz, rdm_sz))
-    f_dx = np.array([fidelity(d1, d2) for d1, d2 in zip(mat1, mat2)])
-    f_dx = f_dx.reshape((mn[0], mn[1] - 1))
-    return f_dx
+        shape, rdm_sz = rdms.shape[:2], rdms.shape[2]
+        mat1, mat2 = rdms[:, :-1], rdms[:, 1:]
+        mat1, mat2 = mat1.reshape((-1, rdm_sz, rdm_sz)), mat2.reshape((-1, rdm_sz, rdm_sz))
+    
+    if fidelity == 'fs':
+        fidelity = partial(compute_norm, prnt=False)
 
+        n = len(rdms)
+        list_1 = [rdms[i][:-1] for i in range(n)]
+        list_2 = [rdms[i][1:] for i in range(n)]
+        mat1 = []
+        mat2 = []
+        for elem1, elem2 in zip(list_1, list_2):
+            mat1 += elem1
+            mat2 += elem2
+
+        shape = (n, ) * 2
+    f_dx = np.array([fidelity(d1, d2) for d1, d2 in zip(mat1, mat2)])
+    f_dx = f_dx.reshape((shape[0], shape[1] - 1))
+    return f_dx
 
 def fidelity_diff_1d(rdms: np.ndarray, *, fidelity=None) -> np.ndarray:
     if fidelity is None:
@@ -139,12 +165,25 @@ def fidelity_laplacian(rdms: np.ndarray, *, fidelity=None, log=False) -> np.ndar
     """
     dxx_params = dict(fidelity=fidelity, log=log)
     f1 = fidelity_dxx(rdms, **dxx_params)
-    f2 = fidelity_dxx(np.swapaxes(rdms, 0, 1), **dxx_params)
+    
+    if fidelity == 'fs':
+        n = len(rdms)
+        swaped_rdms = [rdms[j][i] for i in range(n) for j in range(n)]
+        swaped_rdms_tot = [] 
+        for i in range(n):
+            swaped_rdms_row = []
+            for j in range(n):
+                swaped_rdms_row.append(swaped_rdms[i+j])
+            swaped_rdms_tot.append(swaped_rdms_row)
+        f2 = fidelity_dxx(swaped_rdms_tot, **dxx_params)
+    
+    else:
+        f2 = fidelity_dxx(np.swapaxes(rdms, 0, 1), **dxx_params)
     f2 = np.swapaxes(f2, 0, 1)
     return f2[:, 1:-1] + f1[1:-1, :]
 
 
-def _compute_norm(mps, site, prnt=False):
+def compute_norm(mps1, mps2, prnt=False):
     """
     _compute_norm
 
@@ -159,18 +198,16 @@ def _compute_norm(mps, site, prnt=False):
     """
     a = np.array([1])
 
-    array = mps.copy()
-
     ten = ncon([a, a],[[-1], [-2]])
-    for i in range(site):
+    for i in range(len(mps1)):
         
         ten = ncon(
-            [ten, array[i], array[i].conjugate()],
+            [ten, mps1[i], mps2[i].conjugate()],
             [[1, 2], [1, 3, -1], [2, 3, -2]],
         )
         if prnt:
-            print(f"site {i+1}: ", ten.shape, array[i].shape)
+            print(f"site {i+1}: ", ten.shape, mps1[i].shape)
 
-    N = ncon([ten, a, a], [[1, 2], [1], [2]]).real
+    N = ncon([ten, a, a], [[1, 2], [1], [2]])
 
     return N

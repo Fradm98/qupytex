@@ -102,12 +102,10 @@ def run_model(params, model_factory, gstate_solver):
 
 # *** Data sampling (Hamitonian parameters grid) ***
 
-n = 10  # Sampling grid size
-
 model_name = "Rydberg"
 l = 12
 n = 30
-params = np.linspace(3, 1, n), np.linspace(1, 3, n) # upside-down
+params = np.linspace(1, 3, n), np.linspace(3, 1, n) # upside-down
 
 model_name = "Cluster"
 l = 12

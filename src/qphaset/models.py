@@ -12,7 +12,7 @@ from tenpy.networks.site import Site
 from tenpy.algorithms.exact_diag import ExactDiag
 from tenpy.algorithms import dmrg
 from qs_mps.mps_class import MPS as mps
-from .fidelity import _compute_norm
+from .fidelity import compute_norm
 import numpy as np
 import scipy.linalg as la
 from ncon import ncon
@@ -225,7 +225,7 @@ def generalized_k_rdm(mps, sites, prnt: bool=False) -> np.array:
     # psi_mcf = left_canonical_form(mps=mps, stop=sites[0])
     # # print("mixed canonical form: ")
     # # tensor_shapes(psi_mcf)
-    # norm = _compute_norm(psi_mcf, len(psi_mcf), prnt=False)
+    # norm = compute_norm(psi_mcf, len(psi_mcf), prnt=False)
     # psi_mcf[sites[0]] = psi_mcf[sites[0]]/(norm**(1/2))
 
     # kets = psi_mcf.copy(
