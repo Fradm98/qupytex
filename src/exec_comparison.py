@@ -22,6 +22,11 @@ l = 50
 n = 64
 h_i, h_f = 0.5, 1.5
 
+model_name = "Rydberg"
+l = 12
+n = 25
+h_i, h_f = 1, 3
+
 params = np.linspace(h_i, h_f, n), np.linspace(h_f, h_i, n) # upside-down
 couplings = np.linspace(h_i,h_f,n)
 a = abs(couplings[0] - couplings[1])
@@ -33,7 +38,7 @@ params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
 params_extent = tuple(params_extent[[0, 2, 1, 3]])
 
 device = 'pc'
-device = 'ngt'
+# device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/code"
@@ -65,6 +70,7 @@ else:
 
 
 filename = f'{path_to_tensor}/{model_name}_L_{l}_lambda_1_{params_extent[2]}-{params_extent[3]}_lambda_2_{params_extent[0]}-{params_extent[1]}_npoints_{n}x{n}_chi_{chi}_eps_{c1}.pkl'
+filename = f'{path_to_tensor}/{model_name}_L_{l}_lambda_1_{params_extent[2]}-{params_extent[3]}_lambda_2_{params_extent[0]}-{params_extent[1]}_npoints_{n}x{n}.pkl'
 
 
 with gzip.open(filename, 'rb') as f:
@@ -75,14 +81,14 @@ gstates = data['gstates']
 stats = data['stats']
 
 fidelity = []
-for i in range(len(couplings)-1):
+for i in range(n):
     fidelity_row = []
-    for j in range(len(couplings)-1):
+    for j in range(n-1):
         print(f"L: {l}, couplings: {params[i+j]}")
         heis_chain_g = MPS(L=l, d=d, model=model_name, chi=chi, h=None, eps=c1, J=None, bc='obc')
         
-        heis_chain_g.sites = gstates[i+j]
-        heis_chain_g.ancilla_sites = gstates[i+j+1]
+        heis_chain_g.sites = gstates[i+j+i*(n-1)]
+        heis_chain_g.ancilla_sites = gstates[i+j+i*(n-1)+1]
 
         fidelity_row.append(heis_chain_g._compute_norm(site=1, mixed=True).copy())
     fidelity.append(fidelity_row)
