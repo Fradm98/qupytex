@@ -102,11 +102,6 @@ def run_model(params, model_factory, gstate_solver):
 
 # *** Data sampling (Hamitonian parameters grid) ***
 
-model_name = "Rydberg"
-l = 12
-n = 30
-params = np.linspace(1, 3, n), np.linspace(3, 1, n) # upside-down
-
 model_name = "Cluster"
 l = 12
 n = 30
@@ -117,6 +112,11 @@ l = 15
 n = 10
 params = np.linspace(0.5, 0.6, n), np.linspace(0.6, 0.5, n) # upside-down
 
+model_name = "Rydberg"
+l = 12
+n = 30
+params = np.linspace(1, 3, n), np.linspace(3, 1, n) # upside-down
+
 
 params = map(lambda m: m.flatten(), np.meshgrid(*params, indexing='xy'))
 params = tuple(params)
@@ -125,12 +125,12 @@ params = np.stack(params).T
 
 # *** Config ***
 device = 'pc'
-# device = 'ngt'
+device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/code"
 elif device == 'ngt':
-    device_path = "eos/f/fdimarca"
+    device_path = "/eos/user/f/fdimarca"
 
 # dmrg params
 chi = 100 # bond dimension

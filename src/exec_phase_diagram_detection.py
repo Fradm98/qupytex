@@ -52,6 +52,11 @@ params = np.linspace(0.5, 0.6, n), np.linspace(0.6, 0.5, n) # upside-down
 # n = 64
 # params = np.linspace(0.5, 1.5, n), np.linspace(1.5, 0.5, n) # upside-down
 
+model_name = "Rydberg"
+l = 20
+n = 30
+params = np.linspace(1, 3, n), np.linspace(1.8, 3, n) # upside-down
+
 params = map(lambda m: m.flatten(), np.meshgrid(*params, indexing='xy'))
 params = tuple(params)
 params = np.stack(params).T
@@ -59,7 +64,7 @@ params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
 params_extent = tuple(params_extent[[0, 2, 1, 3]])
 
 device = 'pc'
-# device = 'ngt'
+device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/code"
@@ -162,20 +167,20 @@ eps = params[1, 0] - params[0, 0]
 # plt.close()
 
 # Grad laplacian filter with upsampling
-list_tot = []
-for i in range(n):
-    list_row = []
-    for j in range(n):
-        list_row.append(gstates[i+j])
-    list_tot.append(list_row)
+# list_tot = []
+# for i in range(n):
+#     list_row = []
+#     for j in range(n):
+#         list_row.append(gstates[i+j])
+#     list_tot.append(list_row)
 
-grad_g = phases_vfield(list_tot, fidelity='fs', grad=False)
-plt.imshow(np.abs(grad_g))
-plt.savefig(f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_total_state_no_convol.png")
+# grad_g = phases_vfield(list_tot, fidelity='fs', grad=False)
+# plt.imshow(np.abs(grad_g))
+# plt.savefig(f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_total_state_no_convol.png")
 
 grad_g = phases_vfield(rdms)
-plt.imshow(grad_g)
-plt.savefig(f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_{len(sites)}-rdms_no_convol.png")
+# plt.imshow(grad_g)
+# plt.savefig(f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_{len(sites)}-rdms_no_convol.png")
 
 # TODO review params_extent, consider coordinates shift.
 # *** Scaling behaviour (experimental) ***

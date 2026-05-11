@@ -7,10 +7,10 @@ from qs_mps.applications.ISING.utils import *
 
 import matplotlib.pyplot as plt
 # default parameters of the plot layout
-plt.rcParams["text.usetex"] = True  # use latex
-plt.rcParams["font.size"] = 13
-plt.rcParams["figure.dpi"] = 300
-plt.rcParams["figure.constrained_layout.use"] = True
+# plt.rcParams["text.usetex"] = True  # use latex
+# plt.rcParams["font.size"] = 13
+# plt.rcParams["figure.dpi"] = 300
+# plt.rcParams["figure.constrained_layout.use"] = True
 
 model_name = "Cluster"
 l = 15
@@ -23,9 +23,10 @@ n = 64
 h_i, h_f = 0.5, 1.5
 
 model_name = "Rydberg"
-l = 12
-n = 25
+l = 20
+n = 30
 h_i, h_f = 1, 3
+params = np.linspace(1, 3, n), np.linspace(1.8, 3, n) # upside-down
 
 params = np.linspace(h_i, h_f, n), np.linspace(h_f, h_i, n) # upside-down
 couplings = np.linspace(h_i,h_f,n)
@@ -38,7 +39,7 @@ params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
 params_extent = tuple(params_extent[[0, 2, 1, 3]])
 
 device = 'pc'
-# device = 'ngt'
+device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/code"

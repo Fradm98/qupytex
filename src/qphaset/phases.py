@@ -80,43 +80,9 @@ def rdms_matrix_laplacian(rdms):
     return rdms_dxx[1:-1] + rdms_dyy[:,1:-1]
 
 
-#def log_fidelity(a, b):
+# def log_fidelity(a, b):
 #    return np.log(uhlmann_fidelity(a, b))
-#g = -fidelity_laplacian(rdms, fidelity=log_fidelity, log=True)
-
-# def phases_vfield(rdms_matrix, *, scale=2, grad=True, fidelity=None,
-#                   log_g=False, method='fidelity'):
-#     assert scale in {1, 2}
-#     # TODO Exclude boundaries, re-eval domain. Accept params_extend param
-#     # and return adjusted version of it.
-
-#     g = None
-#     if method == 'fidelity':
-#         g = fidelity_laplacian(rdms_matrix, fidelity=fidelity)
-#         g = np.log(np.maximum(-g, 1e-6)) if log_g else g
-#     elif method == 'tr_qfim':
-#         g = -rdms_lattice_tr_qfim(rdms_matrix)
-#     else:
-#         raise ValueError(f'Unknown method: {method}')
-
-#     if grad:
-#         kernel = None
-#         if scale > 1:
-#             assert scale == 2
-#             g = upsampling_base(g)
-#             # TODO Substitute bump with a possibly separable low-pass filter.
-#             kernel = bump_kernel(6, scale=scale)
-#             kernel = signal.convolve2d(kernel, SOBEL, boundary='symm', mode='same')
-#         else:
-#             kernel = SOBEL
-#         return signal.convolve2d(g, kernel, boundary='symm', mode='same')
-
-#     if scale > 1:
-#         assert scale == 2
-#         g = upsampling_base(g)
-#         kernel = bump_kernel(6, scale=scale)
-#         return signal.convolve2d(g, kernel, boundary='symm', mode='same')
-#     return g
+# g = -fidelity_laplacian(rdms, fidelity=log_fidelity, log=True)
 
 def phases_vfield(rdms_matrix, *, scale=2, grad=True, fidelity=None,
                   log_g=False, method='fidelity'):
@@ -133,4 +99,38 @@ def phases_vfield(rdms_matrix, *, scale=2, grad=True, fidelity=None,
     else:
         raise ValueError(f'Unknown method: {method}')
 
+    if grad:
+        kernel = None
+        if scale > 1:
+            assert scale == 2
+            g = upsampling_base(g)
+            # TODO Substitute bump with a possibly separable low-pass filter.
+            kernel = bump_kernel(6, scale=scale)
+            kernel = signal.convolve2d(kernel, SOBEL, boundary='symm', mode='same')
+        else:
+            kernel = SOBEL
+        return signal.convolve2d(g, kernel, boundary='symm', mode='same')
+
+    if scale > 1:
+        assert scale == 2
+        g = upsampling_base(g)
+        kernel = bump_kernel(6, scale=scale)
+        return signal.convolve2d(g, kernel, boundary='symm', mode='same')
     return g
+
+# def phases_vfield(rdms_matrix, *, scale=2, grad=True, fidelity=None,
+#                   log_g=False, method='fidelity'):
+#     assert scale in {1, 2}
+#     # TODO Exclude boundaries, re-eval domain. Accept params_extend param
+#     # and return adjusted version of it.
+
+#     g = None
+#     if method == 'fidelity':
+#         g = fidelity_laplacian(rdms_matrix, fidelity=fidelity)
+#         g = np.log(np.maximum(-g, 1e-6)) if log_g else g
+#     elif method == 'tr_qfim':
+#         g = -rdms_lattice_tr_qfim(rdms_matrix)
+#     else:
+#         raise ValueError(f'Unknown method: {method}')
+
+#     return g
