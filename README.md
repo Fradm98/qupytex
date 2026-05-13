@@ -25,3 +25,7 @@ The module `exec_dmrg.py` allows you to select the model to study. As aforementi
 Once we have our ground states, we use the module `exec_phase_diagram_detection.py` to load the ground states, compute the k-site reduced density matrices (depending on the model it will show or not show more features of the phase diagram) and compute the RFS. Taking the gradient of this give us a powerful visualization tool, that is, a vector field. The angles of this vector field are also related directly to the parameters of the Hamiltonian.
 Eventually, we can use the module `exec_order_parameter_discovery.py` to go a step further.
 (TODO generate a exec_OPD.py file to show a simple example)
+
+## Acknowledgments
+This repository is based on the work https://arxiv.org/abs/2408.01400v4 and we thank all the authors:
+Nicola Mariella, Tara Murphy, Francesco Di Marcantonio, Khadijeh Najafi, Sofia Vallecorsa, Sergiy Zhuk, and Enrique Rico.
