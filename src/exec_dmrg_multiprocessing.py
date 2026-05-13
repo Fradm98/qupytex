@@ -188,8 +188,8 @@ params = np.linspace(1, 3, n), np.linspace(3, 1, n) # upside-down
 
 model_name = "ANNNI"
 l = 12
-n = 20
-params = np.linspace(0.01, 1.5, n), np.linspace(1.5, 0.01, n) # upside-down
+n = 30
+params = np.linspace(0.5, 2.1, n), np.linspace(1.6, 0.01, n) # upside-down
 
 params = map(lambda m: m.flatten(), np.meshgrid(*params, indexing='xy'))
 params = tuple(params)
