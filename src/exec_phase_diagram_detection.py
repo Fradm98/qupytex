@@ -57,6 +57,11 @@ l = 20
 n = 30
 params = np.linspace(1, 3, n), np.linspace(1.8, 3, n) # upside-down
 
+model_name = "ANNNI"
+l = 12
+n = 20
+params = np.linspace(0.01, 1.5, n), np.linspace(1.5, 0.01, n) # upside-down
+
 params = map(lambda m: m.flatten(), np.meshgrid(*params, indexing='xy'))
 params = tuple(params)
 params = np.stack(params).T
@@ -64,7 +69,7 @@ params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
 params_extent = tuple(params_extent[[0, 2, 1, 3]])
 
 device = 'pc'
-device = 'ngt'
+# device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/code"
@@ -110,6 +115,16 @@ import types
 if isinstance(gstates[0], (types.BuiltinFunctionType, types.BuiltinMethodType)):
     gstates = [gstate() for gstate in gstates]
 
+def sanitize_state(state):
+    # ensure flat list of arrays
+    return [np.array(t) for t in state]
+
+gstates = [
+    sanitize_state(state)
+    for row in gstates
+    for state in (row if isinstance(row, (list, np.ndarray)) else [row])
+]
+
 # Select sites for the partial trace (gstates -> rdms, ie ground states to reduced density matrices).
 # Note the concept of site depends on the model. For example in the case of models based on the
 # class SpinChainNNN, the site corresponds to 2 qubits.
@@ -124,9 +139,6 @@ if tnpy:
 elif qsmps:
     rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, generalized=True)
 
-
-# TODO Fix this in the DMRG runs.
-rdms = rdms[::-1]
 
 # Plot RDMs ranks. This is useful to study the problem of the singularities
 # of the Quantum Fisher Information Matrix.
@@ -199,8 +211,8 @@ grad_g = phases_vfield(rdms)
 # plt.close()
 
 
-# plot_grad_g_angle_stream(grad_g, params_extent=params_extent, axis_name=axis_name, theory_lines=False);
-# plt.savefig(f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_{len(sites)}-rdm.png")
+plot_grad_g_angle_stream(grad_g, params_extent=params_extent, axis_name=axis_name, theory_lines=False);
+plt.savefig(f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_{len(sites)}-rdm.png")
 # # plt.savefig(f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_total_fidelity_susceptibility.png")
 # plt.close()
 

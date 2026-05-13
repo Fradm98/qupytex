@@ -26,8 +26,9 @@ classifiers = [
 dependencies = [
   "numpy",
   "scipy",
-  "qsmps",
-  "tenpy",
+  "cvxpy",
+  "qs-mps",
+  "physics-tenpy",
   "jupyter",
   "matplotlib",
 ]
