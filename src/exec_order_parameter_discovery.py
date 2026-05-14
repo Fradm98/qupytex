@@ -215,3 +215,4 @@ figure_name = f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_{len(sites)}-rdm_OP
 plot_observable(obs, rdms, sites, figure_name=figure_name, params_extent=params_extent, lattice_shape=lattice_shape)
 plot_k_components(obs, rdms, sites, figure_name=figure_name, params_extent=params_extent, lattice_shape=lattice_shape, v0_first_schmidt_vec=v0_first_schmidt_vec)
 plot_grad_g_angle_stream(grad_g, params_extent=params_extent, theory_lines=False)
+plt.savefig(f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_{len(sites)}-rdm.png")
