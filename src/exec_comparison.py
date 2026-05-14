@@ -3,14 +3,9 @@ import gzip
 import pickle
 
 from qs_mps.mps_class import MPS
-from qs_mps.applications.ISING.utils import *
+from qs_mps.applications.ISING.utils import discrete_fidelity_susceptibility
 
 import matplotlib.pyplot as plt
-# default parameters of the plot layout
-# plt.rcParams["text.usetex"] = True  # use latex
-# plt.rcParams["font.size"] = 13
-# plt.rcParams["figure.dpi"] = 300
-# plt.rcParams["figure.constrained_layout.use"] = True
 
 model_name = "Cluster"
 l = 15

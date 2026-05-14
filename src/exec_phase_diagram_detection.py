@@ -10,9 +10,8 @@ from scipy import signal
 from tenpy.networks.mps import MPS
 
 # import adhoc packages
-from qphaset.phases import gstates_to_rdms_matrix, gstates_to_rdms_matrix_qs_mps, phases_vfield, generalized_k_rdm
-from qphaset.models import get_bond_dim_qs_mps
-from qphaset.plotting import plot_grad_g_angle_stream, plot_grad_g_angle4, plot_grad_g_angle_sin_cos
+from qphaset.phases import gstates_to_rdms_matrix, gstates_to_rdms_matrix_qs_mps, phases_vfield, sanitize_state
+from qphaset.plotting import plot_grad_g_angle_stream
 
 # choose which tensor network package to use:
 # tnpy, qsmps = True, False
@@ -99,10 +98,6 @@ params_extent = tuple(params_extent[[0, 2, 1, 3]])
 import types
 if isinstance(gstates[0], (types.BuiltinFunctionType, types.BuiltinMethodType)):
     gstates = [gstate() for gstate in gstates]
-
-def sanitize_state(state):
-    # ensure flat list of arrays
-    return [np.array(t) for t in state]
 
 gstates = [
     sanitize_state(state)

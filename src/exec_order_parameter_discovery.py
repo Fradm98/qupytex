@@ -6,7 +6,7 @@ from qiskit.quantum_info import SparsePauliOp
 
 from matplotlib import pyplot as plt
 
-from qphaset.phases import phases_vfield, gstates_to_rdms_matrix_qs_mps
+from qphaset.phases import phases_vfield, gstates_to_rdms_matrix_qs_mps, sanitize_state, extract_submatrix
 from qphaset.plotting import plot_grad_g_angle_stream, plot_k_components, plot_observable
 
 gamma = None
@@ -76,10 +76,6 @@ stats = data['stats']
 params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
 params_extent = tuple(params_extent[[0, 2, 1, 3]])
 
-def sanitize_state(state):
-    # ensure flat list of arrays
-    return [np.array(t) for t in state]
-
 gstates = [
     sanitize_state(state)
     for row in gstates
@@ -104,60 +100,6 @@ if select_sub_mat:
 
     # Example matrix
     M = np.random.rand(n, n)
-
-    def extract_submatrix(matrix, x_vals, y_vals,
-                        x0, y0,
-                        dx=2, dy=2, to_end=True):
-        """
-        Extract submatrix centered around parameter point (x0, y0).
-
-        Parameters
-        ----------
-        matrix : 2D array
-        x_vals : 1D x-axis values
-        y_vals : 1D y-axis values
-        x0, y0 : target parameter values
-        dx, dy : half-width in index space
-
-        Returns
-        -------
-        submatrix, x_indices, y_indices
-        """
-
-        # Closest grid indices
-        ix = np.argmin(np.abs(x_vals - x0))
-        iy = np.argmin(np.abs(y_vals - y0))
-
-        # Bounds
-        if to_end:
-            x_start = ix - dx
-            x_end   = len(x_vals) - 1
-
-            y_start = iy - dy
-            y_end   = len(y_vals) - 1
-        else:
-            x_start = 0
-            x_end = ix + dx
-
-            y_start = 0
-            y_end = iy + dy
-
-        if x_end - x_start != y_end - y_start:
-            min_len = min(x_end - x_start, y_end - y_start)
-            if x_end - x_start > min_len:
-                if to_end:
-                    x_end = x_start + min_len
-                else:
-                    x_start = x_end - min_len
-            elif y_end - y_start > min_len:
-                if to_end:
-                    y_end = y_start + min_len
-                else:
-                    y_start = y_end - min_len
-                
-        submatrix = matrix[y_start:y_end, x_start:x_end].copy()
-
-        return submatrix, tuple([x_start, x_end, y_start, y_end])
 
     print("\n-------------------------------------------")
     print(f"rdms shape before trimming: {rdms.shape}")

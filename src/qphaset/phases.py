@@ -138,3 +138,61 @@ def decompose_obs(obs, k_sites=2):
     components = operators.paulis
     sorted_components = [components[i] for i in sorted_indices]
     return sorted_components[:2**(k_sites)]
+
+def sanitize_state(state):
+    # ensure flat list of arrays
+    return [np.array(t) for t in state]
+
+def extract_submatrix(matrix, x_vals, y_vals,
+                        x0, y0,
+                        dx=2, dy=2, to_end=True):
+    """
+    Extract submatrix centered around parameter point (x0, y0).
+
+    Parameters
+    ----------
+    matrix : 2D array
+    x_vals : 1D x-axis values
+    y_vals : 1D y-axis values
+    x0, y0 : target parameter values
+    dx, dy : half-width in index space
+
+    Returns
+    -------
+    submatrix, x_indices, y_indices
+    """
+
+    # Closest grid indices
+    ix = np.argmin(np.abs(x_vals - x0))
+    iy = np.argmin(np.abs(y_vals - y0))
+
+    # Bounds
+    if to_end:
+        x_start = ix - dx
+        x_end   = len(x_vals) - 1
+
+        y_start = iy - dy
+        y_end   = len(y_vals) - 1
+    else:
+        x_start = 0
+        x_end = ix + dx
+
+        y_start = 0
+        y_end = iy + dy
+
+    if x_end - x_start != y_end - y_start:
+        min_len = min(x_end - x_start, y_end - y_start)
+        if x_end - x_start > min_len:
+            if to_end:
+                x_end = x_start + min_len
+            else:
+                x_start = x_end - min_len
+        elif y_end - y_start > min_len:
+            if to_end:
+                y_end = y_start + min_len
+            else:
+                y_start = y_end - min_len
+            
+    submatrix = matrix[y_start:y_end, x_start:x_end].copy()
+
+    return submatrix, tuple([x_start, x_end, y_start, y_end])

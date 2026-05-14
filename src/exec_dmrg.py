@@ -1,10 +1,8 @@
 import numpy as np
-import time
 import pickle
 import gzip
 from functools import partial
 
-from tqdm import tqdm
 from tenpy.tools import hdf5_io
 import h5py
 
@@ -12,63 +10,8 @@ from qphaset.annni import model_annni_qs_mps
 from qphaset.cluster import model_cluster_qs_mps
 from qphaset.rydberg import model_rydberg_qs_mps
 from qphaset.models import drmg_gstate_qs_mps
+from qphaset.run import *
 
-def guess_state(L):
-    """
-    guess_state
-
-    This function gives you a product state tensor of all up spins
-    for a chain of length L
-    
-    """
-    up = np.array([[[1],[0]]])
-    init_tensor = [up for _ in range(L)]
-    return init_tensor
-
-def run_model(params, model_factory, gstate_solver):
-    t_tot = []
-    g_states = []
-    init_tensor = None
-    pbar = tqdm(params, dynamic_ncols=True)
-
-    for (x, y) in pbar:
-
-        # This updates the SAME tqdm line continuously
-        # pbar.set_postfix({
-        #     "lambda1": f"{x:.6f}",
-        #     "lambda2": f"{y:.6f}"
-        # })
-        pbar.set_description(f"lambda1={x:.4f}, lambda2={y:.4f}")
-
-        model = model_factory(x, y)
-
-        try:
-            if y == params[0, -1]:
-                init_tensor = guess_state(model.L)
-                model.sites = init_tensor.copy()
-                model.enlarge_chi(noise_std=1e-6)
-            else:
-                model.sites = init_tensor.copy()
-
-            timer = time.monotonic()
-            gstate = gstate_solver(model=model)
-            timer = time.monotonic() - timer
-
-        except Exception as e:
-            tqdm.write(f"Random state fallback at x={x}, y={y}")
-            tqdm.write(str(e))
-            model._random_state(seed=3, type_shape="rectangular")
-            model.canonical_form()
-            timer = time.monotonic()
-            gstate = gstate_solver(model=model)
-            timer = time.monotonic() - timer
-
-        t_tot.append(timer)
-        g_states.append(model.sites.copy())
-        init_tensor = model.sites.copy()
-
-    statistics = dict(times=t_tot)
-    return g_states, statistics
 
 model_name = "Cluster"
 l = 12
