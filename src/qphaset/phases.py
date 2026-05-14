@@ -6,13 +6,12 @@ import numpy as np
 from tqdm import tqdm
 from .fidelity import fidelity_laplacian
 from scipy import signal
-import scipy.linalg as la
 from .filters import SOBEL, bump_kernel, upsampling_base
-from .models import get_rdm, get_rdm_qs_mps, reduced_density_matrix, generalized_k_rdm
+from .models import get_rdm, reduced_density_matrix, generalized_k_rdm
 from .qfim import rdms_lattice_tr_qfim
 from .linalg import projh_psd as _projh_psd
-from ncon import ncon
-from qs_mps.utils import tensor_shapes
+from qphaset.linalg import schmidt_decomp_half
+from qiskit.quantum_info import SparsePauliOp
 
 def gstates_to_rdms_matrix(gstates, *, sites=None, shape=None, proj_psd=False):
     """Given a list of ground states (TenPy MPS) ordered corresponding
@@ -118,19 +117,24 @@ def phases_vfield(rdms_matrix, *, scale=2, grad=True, fidelity=None,
         return signal.convolve2d(g, kernel, boundary='symm', mode='same')
     return g
 
-# def phases_vfield(rdms_matrix, *, scale=2, grad=True, fidelity=None,
-#                   log_g=False, method='fidelity'):
-#     assert scale in {1, 2}
-#     # TODO Exclude boundaries, re-eval domain. Accept params_extend param
-#     # and return adjusted version of it.
+def make_obs_vec(obs_ev, obs_eval, obs_ev_idx, v0_first_schmidt_vec=False):
+    v0 = obs_ev[:, obs_ev_idx]
 
-#     g = None
-#     if method == 'fidelity':
-#         g = fidelity_laplacian(rdms_matrix, fidelity=fidelity)
-#         g = np.log(np.maximum(-g, 1e-6)) if log_g else g
-#     elif method == 'tr_qfim':
-#         g = -rdms_lattice_tr_qfim(rdms_matrix)
-#     else:
-#         raise ValueError(f'Unknown method: {method}')
+    # Schmidt coefficients w.r.t. middle split
+    if v0_first_schmidt_vec:
+        v0 = schmidt_decomp_half(v0, contract_sigmas=1, normalize=True)
 
-#     return g
+    v0 = np.reshape(v0, (-1, 1))
+    obs0 = np.sign(obs_eval[obs_ev_idx]) * v0 @ np.conj(v0.T)
+    return obs0
+
+def get_obs_ev(obs):
+    obs_eval, obs_ev = np.linalg.eigh(obs)
+    return obs_eval, obs_ev
+
+def decompose_obs(obs, k_sites=2):
+    operators = SparsePauliOp.from_operator(obs)
+    sorted_indices = np.argsort(operators.coeffs)[::-1]
+    components = operators.paulis
+    sorted_components = [components[i] for i in sorted_indices]
+    return sorted_components[:2**(k_sites)]

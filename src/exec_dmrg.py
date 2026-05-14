@@ -70,38 +70,6 @@ def run_model(params, model_factory, gstate_solver):
     statistics = dict(times=t_tot)
     return g_states, statistics
 
-# def run_model(params, model_factory, gstate_solver):
-#     t_tot = []
-#     g_states = []
-#     for (x,y) in tqdm(params):
-#         print(f"x: {x}, y:{y}")
-#         model = model_factory(x, y)
-#         try:
-#             print("try with guess state...")
-#             if y == params[0,-1]:
-#                 init_tensor = guess_state(model.L)
-#                 model.sites = init_tensor.copy()
-#                 model.enlarge_chi()
-#             else:
-#                 model.sites = init_tensor.copy()
-#             timer = time.monotonic()
-#             gstate = gstate_solver(model=model)
-#             timer = time.monotonic() - timer
-#         except:
-#             print("try with random state...")
-#             model._random_state(seed=3, type_shape="rectangular")
-#             model.canonical_form()
-#             timer = time.monotonic()
-#             gstate = gstate_solver(model=model)
-#             timer = time.monotonic() - timer
-#         t_tot.append(timer)
-#         g_states.append(model.sites.copy())
-#         init_tensor = model.sites.copy()
-#     statistics = dict(times=t_tot)
-#     return g_states, statistics
-
-# *** Data sampling (Hamitonian parameters grid) ***
-
 model_name = "Cluster"
 l = 12
 n = 30
@@ -186,13 +154,13 @@ gstates, stats = run_model(params,
 params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
 params_extent = tuple(params_extent[[0, 2, 1, 3]])
 
-filename = f'{path_to_tensor}/{model_name}_L_{l}_lambda_1_{params_extent[2]}-{params_extent[3]}_lambda_2_{params_extent[0]}-{params_extent[1]}_npoints_{n}x{n}_chi_{chi}_eps_{c1}.pkl' 
+filename = f'{path_to_tensor}/{model_name}_L_{l}_lambda_1_{params_extent[2]}-{params_extent[3]}_lambda_2_{params_extent[0]}-{params_extent[1]}_npoints_{n}x{n}_chi_{chi}_eps_{c1}'
 print(f"Saving pickle files at: {filename}")
 
 data = dict(params=params, dmrg_params=dmrg_params,
             l=l, n=n, model_name=model_name,
             gstates=gstates, stats=stats)
-with gzip.open(filename, 'wb') as f:
+with gzip.open(f"{filename}.pkl", 'wb') as f:
     pickle.dump(data, f)
 
 # ## Save `hdf5`
@@ -229,7 +197,6 @@ data_h5 = {#"gstates": gstates,  # list of MPS - tensors
 }
 
 # Saving your file, make sure to change the name to the name you want to store your file in! 
-filename = f'{path_to_tensor}/{model_name}_L_{l}_lambda_1_{params_extent[2]}-{params_extent[3]}_lambda_2_{params_extent[0]}-{params_extent[1]}_npoints_{n}x{n}.h5' 
 print(f"Saving hdf5 files at: {filename}")
-with h5py.File(filename, 'w') as f:
+with h5py.File(f"{filename}.h5", 'w') as f:
     hdf5_io.save_to_hdf5(f, data_h5)

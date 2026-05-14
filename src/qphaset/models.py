@@ -19,8 +19,8 @@ from ncon import ncon
 
 
 
-def params_2d_lattice(ext_x, ext_y, *, n):
-    params = np.linspace(*ext_x, n), np.linspace(*ext_y, n)
+def params_2d_lattice(ext_x, ext_y, *, n1, n2):
+    params = np.linspace(*ext_x, n1), np.linspace(*ext_y, n2)
 
     params = map(lambda m: m.flatten(), np.meshgrid(*params, indexing='xy'))
     params = tuple(params)
