@@ -32,7 +32,11 @@ n = 30
 h_i, h_f = 0.5, 2.1
 params = np.linspace(0.5, 2.1, n), np.linspace(1.6, 0.01, n) # upside-down
 
-# params = np.linspace(h_i, h_f, n), np.linspace(h_f, h_i, n) # upside-down
+model_name = "ANNNI"
+l = 12
+n = 20
+h_i, h_f = 0.01, 1.5
+params = np.linspace(h_i, h_f, n), np.linspace(h_f, h_i, n) # upside-down
 
 couplings = np.linspace(h_i,h_f,n)
 a = abs(couplings[0] - couplings[1])
