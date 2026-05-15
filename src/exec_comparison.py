@@ -10,6 +10,17 @@ from qphaset.fidelity import uhlmann_fidelity
 
 import matplotlib.pyplot as plt
 
+plt.rcParams.update({
+    "font.size": 8,
+    "axes.titlesize": 9,
+    "axes.labelsize": 8,
+    "xtick.labelsize": 7,
+    "ytick.labelsize": 7,
+    "legend.fontsize": 7,
+    "figure.titlesize": 9,
+    "lines.linewidth": 1.5,
+})
+
 model_name = "Cluster"
 l = 15
 n = 10
@@ -33,8 +44,8 @@ h_i, h_f = 0.5, 2.1
 params = np.linspace(0.5, 2.1, n), np.linspace(1.6, 0.01, n) # upside-down
 
 model_name = "ANNNI"
-l = 12
-n = 20
+l = 20
+n = 30
 h_i, h_f = 0.01, 1.5
 params = np.linspace(h_i, h_f, n), np.linspace(h_f, h_i, n) # upside-down
 
@@ -48,7 +59,7 @@ params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
 params_extent = tuple(params_extent[[0, 2, 1, 3]])
 
 device = 'pc'
-# device = 'ngt'
+device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/code"
@@ -68,7 +79,7 @@ if model_name == 'ANNNI':
 elif model_name == 'Cluster':
     path_to_tensor = f"{device_path}/projects/3_CLUSTER/results/data"
     path_to_figures = f"{device_path}/projects/3_CLUSTER/figures"
-    axis_name = ('k', 'h')
+    axis_name = ('K', 'h')
 
 elif model_name == 'Rydberg':
     path_to_tensor = f"{device_path}/projects/4_RYDBERG/results/data"
@@ -144,12 +155,16 @@ for fid_row in fidelity:
 
 fig, ax = plt.subplots(1,2, figsize=(10,4))
 
-im0 = ax[0].imshow(np.asarray(dfss_rdms), origin='lower', aspect='auto')
+im0 = ax[0].matshow(np.asarray(dfss_rdms), origin='lower', extent=params_extent, aspect='auto')
 ax[0].set_title("reduced fidelity susceptibility")
+ax[0].set_xlabel(axis_name[0])
+ax[0].set_ylabel(axis_name[1])
 fig.colorbar(im0, ax=ax[0])
 
-im1 = ax[1].imshow(np.asarray(dfss), origin='lower', aspect='auto')
+im1 = ax[1].matshow(np.asarray(dfss), origin='lower', extent=params_extent, aspect='auto')
 ax[1].set_title("global fidelity susceptibility")
+ax[1].set_xlabel(axis_name[0])
+ax[1].set_ylabel(axis_name[1])
 fig.colorbar(im1, ax=ax[1])
 plt.tight_layout()
-fig.savefig(f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_comparison_no_convol.png")
+fig.savefig(f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_comparison_no_convol.png", dpi=300)
