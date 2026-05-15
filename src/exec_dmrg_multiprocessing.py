@@ -1,6 +1,8 @@
 import numpy as np
 import pickle
 import gzip
+import h5py
+import os
 from functools import partial
 
 from qphaset.annni import model_annni_qs_mps
@@ -48,6 +50,14 @@ elif device == 'ngt':
 # dmrg params
 chi = 100 # bond dimension
 c1 = 1e-3 # symm- break.
+
+d = 2 # physical local dimension
+
+estimate_storage = 16 * (n**2) * l * d * (chi**2)  # bytes (complex128)
+estimate_gb = estimate_storage / 1e9
+
+limit_pkl_storage = 50  # GB
+
 
 if model_name == 'ANNNI':
     path_to_tensor = f"{device_path}/projects/2_ANNNI/results/data"
@@ -104,8 +114,6 @@ def main():
 
     filename = f'{path_to_tensor}/{model_name}_L_{l}_lambda_1_{params_extent[2]}-{params_extent[3]}_lambda_2_{params_extent[0]}-{params_extent[1]}_npoints_{n}x{n}_chi_{chi}_eps_{c1}.pkl'
 
-    print(f"Saving pickle files at: {filename}")
-
     data = dict(
         params=params,
         dmrg_params=dmrg_params,
@@ -116,8 +124,24 @@ def main():
         stats=stats
     )
 
-    with gzip.open(filename, 'wb') as f:
-        pickle.dump(data, f)
+    if estimate_gb < limit_pkl_storage:
+
+        try:
+            print(f"Saving pickle: {filename}")
+
+            with gzip.open(filename, "wb") as f:
+                pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        except Exception as e:
+            print(f"Pickle failed: {e}")
+            print("Falling back to HDF5")
+            if os.path.exists(filename):
+                os.remove(filename)
+            save_hdf5(filename, data)
+
+    else:
+        print(f"Too large for pickle ({estimate_gb:.1f} GB), using HDF5")
+        save_hdf5(filename, data)
 
 
 if __name__ == "__main__":

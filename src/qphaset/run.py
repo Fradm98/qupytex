@@ -3,6 +3,8 @@ from tqdm import tqdm
 import time
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import h5py
+from tenpy.tools import hdf5_io
 
 def guess_state(L):
     """
@@ -201,3 +203,30 @@ def run_model_parallel(
     statistics = dict(times=times_matrix)
 
     return gstates_matrix, statistics
+
+def save_hdf5(filename, data):
+
+        params_extent = np.concatenate([
+            np.min(data["params"], axis=0),
+            np.max(data["params"], axis=0)
+        ])
+
+        params_extent = tuple(params_extent[[0, 2, 1, 3]])
+
+        tensor_list = data["gstates"]
+
+        matrix_nxn = [tensor_list[i*data["n"]:(i+1)*data["n"]] for i in range(data["n"])]
+        corrected_list = [x for row in matrix_nxn[::-1] for x in row]
+
+        data_h5 = {
+            "gstates": corrected_list,
+            "params_extent": params_extent,
+            "n": data["n"],
+            "l": data["l"],
+            "dmrg_params": data["dmrg_params"],
+            "info": {"model_type": "Cluster"},
+            "times": np.array(data["stats"]["times"]),
+        }
+
+        with h5py.File(f"{filename}.h5", "w") as f:
+            hdf5_io.save_to_hdf5(f, data_h5)

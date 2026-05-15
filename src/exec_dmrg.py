@@ -2,9 +2,7 @@ import numpy as np
 import pickle
 import gzip
 from functools import partial
-
-from tenpy.tools import hdf5_io
-import h5py
+import os
 
 from qphaset.annni import model_annni_qs_mps
 from qphaset.cluster import model_cluster_qs_mps
@@ -46,6 +44,13 @@ elif device == 'ngt':
 # dmrg params
 chi = 100 # bond dimension
 c1 = 1e-3 # symm- break.
+
+d = 2 # physical local dimension
+
+estimate_storage = 16 * (n**2) * l * d * (chi**2)  # bytes (complex128)
+estimate_gb = estimate_storage / 1e9
+
+limit_pkl_storage = 50  # GB
 
 if model_name == 'ANNNI':
     path_to_tensor = f"{device_path}/projects/2_ANNNI/results/data"
@@ -90,56 +95,37 @@ gstates, stats = run_model(params,
 
 
 
-# ## Save `pickle`
-
-# *** Data export ***
-
+# ---------------- SAVE ----------------
 params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
 params_extent = tuple(params_extent[[0, 2, 1, 3]])
 
-filename = f'{path_to_tensor}/{model_name}_L_{l}_lambda_1_{params_extent[2]}-{params_extent[3]}_lambda_2_{params_extent[0]}-{params_extent[1]}_npoints_{n}x{n}_chi_{chi}_eps_{c1}'
-print(f"Saving pickle files at: {filename}")
+filename = f'{path_to_tensor}/{model_name}_L_{l}_lambda_1_{params_extent[2]}-{params_extent[3]}_lambda_2_{params_extent[0]}-{params_extent[1]}_npoints_{n}x{n}_chi_{chi}_eps_{c1}.pkl'
 
-data = dict(params=params, dmrg_params=dmrg_params,
-            l=l, n=n, model_name=model_name,
-            gstates=gstates, stats=stats)
-with gzip.open(f"{filename}.pkl", 'wb') as f:
-    pickle.dump(data, f)
+data = dict(
+    params=params,
+    dmrg_params=dmrg_params,
+    l=l,
+    n=n,
+    model_name=model_name,
+    gstates=gstates,
+    stats=stats
+)
 
-# ## Save `hdf5`
+if estimate_gb < limit_pkl_storage:
 
-data = dict(params=params, dmrg_params=dmrg_params,
-            l=l, n=n, model_name=model_name,
-            gstates=gstates, stats=stats)
+    try:
+        print(f"Saving pickle: {filename}")
 
-# Looking at the extent of the parameters explored (all just double checking all is okay!)
-params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
-params_extent = tuple(params_extent[[0, 2, 1, 3]])
-print(params_extent)
-print(np.shape(params))
+        with gzip.open(filename, "wb") as f:
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-# Taking the tensors
-tensor_list =  data["gstates"]
+    except Exception as e:
+        print(f"Pickle failed: {e}")
+        print("Falling back to HDF5")
+        if os.path.exists(filename):
+            os.remove(filename)
+        save_hdf5(filename, data)
 
-# Convert the list to a 64x64 nested list
-matrix_64x64 = [tensor_list[i*64:(i+1)*64] for i in range(64)]
-# Flip the nested list vertically
-flipped_matrix = matrix_64x64[::-1]
-# Flatten the nested list back into a single list
-corrected_list = [item for sublist in flipped_matrix for item in sublist]
-
-# Creating data dictionary to be saved 
-data_h5 = {#"gstates": gstates,  # list of MPS - tensors 
-        "gstates": corrected_list, # Flipped list
-        "params_extent": params_extent, # (2, N) evenly spaced - in future 
-        "n": data["n"],
-        "l": data["l"], # Number of qubits (L)
-        "dmrg_params": data["dmrg_params"], # DMRG params used in calculation - converting? hashtable 
-        "info": {"model_type":"Cluster",}, # Additional info 
-        "times": np.array(data["stats"]["times"]), # Times for DMRG } # params swept 
-}
-
-# Saving your file, make sure to change the name to the name you want to store your file in! 
-print(f"Saving hdf5 files at: {filename}")
-with h5py.File(f"{filename}.h5", 'w') as f:
-    hdf5_io.save_to_hdf5(f, data_h5)
+else:
+    print(f"Too large for pickle ({estimate_gb:.1f} GB), using HDF5")
+    save_hdf5(filename, data)
