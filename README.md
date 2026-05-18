@@ -25,7 +25,7 @@ The module `exec_dmrg.py` allows you to select the model to study. As aforementi
 Once we have our ground states, we use the module `exec_phase_diagram_detection.py` to load the ground states, compute the k-site reduced density matrices (depending on the model it will show or not show more features of the phase diagram) and compute the RFS. Taking the gradient of this give us a powerful visualization tool, that is, a vector field. The angles of this vector field are also related directly to the parameters of the Hamiltonian.
 Eventually, we can use the module `exec_order_parameter_discovery.py` to go a step further.  
 We add also a `exec_comparison.py` module in which you can verify the reduced and global fidelity susceptibility without the vector field geometrical construction.  
-Some data to test the code are available at the following links:
+Some data to test the code are available at the following links:  
 ANNNI: https://cernbox.cern.ch/files/spaces/eos/user/f/fdimarca/projects/2_ANNNI  
 CLUSTER: https://cernbox.cern.ch/files/spaces/eos/user/f/fdimarca/projects/3_CLUSTER  
 RYDBERG: https://cernbox.cern.ch/files/spaces/eos/user/f/fdimarca/projects/4_RYDBERG  
