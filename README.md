@@ -26,9 +26,9 @@ Once we have our ground states, we use the module `exec_phase_diagram_detection.
 Eventually, we can use the module `exec_order_parameter_discovery.py` to go a step further.  
 We add also a `exec_comparison.py` module in which you can verify the reduced and global fidelity susceptibility without the vector field geometrical construction.  
 Some data to test the code are available at the following links:
-ANNNI: https://cernbox.cern.ch/files/spaces/eos/user/f/fdimarca/projects/2_ANNNI
-CLUSTER: https://cernbox.cern.ch/files/spaces/eos/user/f/fdimarca/projects/3_CLUSTER
-RYDBERG: https://cernbox.cern.ch/files/spaces/eos/user/f/fdimarca/projects/4_RYDBERG
+ANNNI: https://cernbox.cern.ch/files/spaces/eos/user/f/fdimarca/projects/2_ANNNI  
+CLUSTER: https://cernbox.cern.ch/files/spaces/eos/user/f/fdimarca/projects/3_CLUSTER  
+RYDBERG: https://cernbox.cern.ch/files/spaces/eos/user/f/fdimarca/projects/4_RYDBERG  
 
 The same functionalities of these modules can be found in src/qphaset/notebooks folder
 with the jupyter notebooks:
