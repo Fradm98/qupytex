@@ -45,7 +45,7 @@ params = np.stack(params).T
 
 # *** Config ***
 device = 'pc'
-# device = 'ngt'
+device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/work"
@@ -53,7 +53,7 @@ elif device == 'ngt':
     device_path = "/eos/user/f/fdimarca"
 
 # dmrg params
-chi = 10 # bond dimension
+chi = 50 # bond dimension
 c1 = 1e-3 # symm- break.
 
 

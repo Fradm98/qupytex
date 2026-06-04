@@ -60,7 +60,7 @@ params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
 params_extent = tuple(params_extent[[0, 2, 1, 3]])
 
 device = 'pc'
-# device = 'ngt'
+device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/work"
@@ -68,7 +68,7 @@ elif device == 'ngt':
     device_path = "/eos/user/f/fdimarca"
 
 # dmrg params
-chi = 100 # bond dimension
+chi = 50 # bond dimension
 c1 = 1e-3 # eps symm. break.
 if model_name == 'ANNNI':
     path_to_tensor = f"{device_path}/projects/2_ANNNI/results/data"
@@ -111,11 +111,11 @@ import types
 if isinstance(gstates[0], (types.BuiltinFunctionType, types.BuiltinMethodType)):
     gstates = [gstate() for gstate in gstates]
 
-gstates = [
-    sanitize_state(state)
-    for row in gstates
-    for state in (row if isinstance(row, (list, np.ndarray)) else [row])
-]
+# gstates = [
+#     sanitize_state(state)
+#     for row in gstates
+#     for state in (row if isinstance(row, (list, np.ndarray)) else [row])
+# ]
 
 # Select sites for the partial trace (gstates -> rdms, ie ground states to reduced density matrices).
 # Note the concept of site depends on the model. For example in the case of models based on the
@@ -134,4 +134,4 @@ elif qsmps:
 grad_g = phases_vfield(rdms)
 
 plot_grad_g_angle_stream(grad_g, params_extent=params_extent, axis_name=axis_name, theory_lines=False);
-plt.savefig(f"{path_to_figures}/{model_name}_L_{l}_{n}x{n}_{len(sites)}-rdm.png")
+plt.savefig(f"{path_to_figures}/{model_name}_L_{l}_lambda_1_{params_extent[2]}-{params_extent[3]}_lambda_2_{params_extent[0]}-{params_extent[1]}_{n}x{n}_{len(sites)}-rdm.png")
