@@ -8,6 +8,7 @@ from functools import partial
 from qphaset.annni import model_annni_qs_mps
 from qphaset.cluster import model_cluster_qs_mps
 from qphaset.rydberg import model_rydberg_qs_mps
+from qphaset.tjv_model import model_tjv_qs_mps
 from qphaset.models import drmg_gstate_qs_mps
 from qphaset.run import *
 
@@ -15,23 +16,34 @@ from qphaset.run import *
 
 model_name = "Cluster"
 l = 12
+d = 2 # physical local dimension
 n = 30
 params = np.linspace(0.5, 1.5, n), np.linspace(1.5, 0.5, n) # upside-down
 
 model_name = "Cluster"
 l = 15
+d = 2 # physical local dimension
 n = 10
 params = np.linspace(0.5, 0.6, n), np.linspace(0.6, 0.5, n) # upside-down
 
 model_name = "Rydberg"
 l = 12
+d = 2 # physical local dimension
 n = 10
 params = np.linspace(1, 3, n), np.linspace(3, 1, n) # upside-down
 
 model_name = "ANNNI"
 l = 12
+d = 2 # physical local dimension
 n = 30
 params = np.linspace(0.5, 2.1, n), np.linspace(1.6, 0.01, n) # upside-down
+
+model_name = "tjv"
+l = 12
+d = 3 # physical local dimension
+n = 30
+Jz = 10
+params = np.linspace(1, 3, n), np.linspace(3, 1, n) # upside-down
 
 params = map(lambda m: m.flatten(), np.meshgrid(*params, indexing='xy'))
 params = tuple(params)
@@ -40,7 +52,7 @@ params = np.stack(params).T
 
 # *** Config ***
 device = 'pc'
-# device = 'ngt'
+device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/code"
@@ -51,7 +63,6 @@ elif device == 'ngt':
 chi = 100 # bond dimension
 c1 = 1e-3 # symm- break.
 
-d = 2 # physical local dimension
 
 estimate_storage = 16 * (n**2) * l * d * (chi**2)  # bytes (complex128)
 estimate_gb = estimate_storage / 1e9
@@ -74,6 +85,11 @@ elif model_name == 'Rydberg':
     path_to_tensor = f"{device_path}/projects/4_RYDBERG/results/data"
     path_to_figures = f"{device_path}/projects/4_RYDBERG/figures"
 
+elif model_name == 'tjv':
+    model_factory = partial(model_tjv_qs_mps, Jz=Jz, c1=c1, chi=chi)
+    path_to_tensor = f"{device_path}/projects/4_RYDBERG/results/data"
+    path_to_figures = f"{device_path}/projects/4_RYDBERG/figures"
+
 else:
     raise SyntaxError("Choose a valid model among 'ANNNI', 'Cluster', and 'Rydberg'")
 
@@ -87,7 +103,7 @@ dmrg_params = {
        'trunc_chi': True
     #   'svd_min': 1.e-16
     },
-    'd': 2,
+    'd': d,
     'max_hours': 16 / 3600
     #'combine': True
 }

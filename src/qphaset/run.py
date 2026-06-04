@@ -6,7 +6,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import h5py
 from tenpy.tools import hdf5_io
 
-def guess_state(L):
+def guess_state(L, d):
     """
     guess_state
 
@@ -14,9 +14,18 @@ def guess_state(L):
     for a chain of length L
     
     """
-    up = np.array([[[1],[0]]])
+    state = [0]*d
+    state[0] = 1
+    up = np.array([state]).reshape((1,d,1))
     init_tensor = [up for _ in range(L)]
     return init_tensor
+
+def neel_prod_state(L, d):
+    spin_up_tn = np.array([1,0,0]).reshape((1,d,1))
+    hole_tn = np.array([0,1,0]).reshape((1,d,1))
+    spin_down_tn = np.array([0,0,1]).reshape((1,d,1))
+    tn_list = [spin_up_tn if (i%2) == 0 else spin_down_tn for i in range(L)]
+    return tn_list
 
 def run_model(params, model_factory, gstate_solver):
     t_tot = []
@@ -37,7 +46,10 @@ def run_model(params, model_factory, gstate_solver):
 
         try:
             if y == params[0, -1]:
-                init_tensor = guess_state(model.L)
+                if model.model == "tj":
+                    init_tensor = neel_prod_state(model.L, model.d)
+                else:
+                    init_tensor = guess_state(model.L, model.d)
                 model.sites = init_tensor.copy()
                 model.enlarge_chi(noise_std=1e-6)
             else:
@@ -82,7 +94,10 @@ def run_single_y(
         try:
 
             if i == 0:
-                init_tensor = guess_state(model.L)
+                if model.model == "tj":
+                    init_tensor = neel_prod_state(model.L, model.d)
+                else:
+                    init_tensor = guess_state(model.L, model.d)
 
                 model.sites = init_tensor.copy()
 
