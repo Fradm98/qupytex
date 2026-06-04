@@ -46,6 +46,13 @@ l = 12
 n = 20
 params = np.linspace(0.01, 1.5, n), np.linspace(1.5, 0.01, n) # upside-down
 
+model_name = "tjv"
+l = 12
+d = 3 # physical local dimension
+n = 30
+Jz = 10
+params = np.linspace(1, 3, n), np.linspace(3, 1, n) # upside-down
+
 params = map(lambda m: m.flatten(), np.meshgrid(*params, indexing='xy'))
 params = tuple(params)
 params = np.stack(params).T
@@ -56,7 +63,7 @@ device = 'pc'
 # device = 'ngt'
 
 if device == 'pc':
-    device_path = "D:/code"
+    device_path = "D:/work"
 elif device == 'ngt':
     device_path = "/eos/user/f/fdimarca"
 
@@ -77,6 +84,11 @@ elif model_name == 'Rydberg':
     path_to_tensor = f"{device_path}/projects/4_RYDBERG/results/data"
     path_to_figures = f"{device_path}/projects/4_RYDBERG/figures"
     axis_name = ('$\\Delta/\\Omega$', '$R_b/a$')
+
+elif model_name == 'tj':
+    path_to_tensor = f"{device_path}/projects/6_TJ/results/data"
+    path_to_figures = f"{device_path}/projects/6_TJ/figures"
+    axis_name = ('$J_{perp}$', '$t$')
 
 else:
     raise SyntaxError("Choose a valid model among 'ANNNI', 'Cluster', and 'Rydberg'")
