@@ -80,8 +80,8 @@ elif model_name == 'Rydberg':
 
 elif model_name == 'tjv':
     model_factory = partial(model_tjv_qs_mps, Jz=Jz, c1=c1, chi=chi)
-    path_to_tensor = f"{device_path}/projects/4_RYDBERG/results/data"
-    path_to_figures = f"{device_path}/projects/4_RYDBERG/figures"
+    path_to_tensor = f"{device_path}/projects/6_TJ/results/data"
+    path_to_figures = f"{device_path}/projects/6_TJ/figures"
 
 else:
     raise SyntaxError("Choose a valid model among 'ANNNI', 'Cluster', and 'Rydberg'")
