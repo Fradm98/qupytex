@@ -85,7 +85,7 @@ elif model_name == 'Rydberg':
     path_to_figures = f"{device_path}/projects/4_RYDBERG/figures"
     axis_name = ('$\\Delta/\\Omega$', '$R_b/a$')
 
-elif model_name == 'tj':
+elif model_name == 'tjv':
     path_to_tensor = f"{device_path}/projects/6_TJ/results/data"
     path_to_figures = f"{device_path}/projects/6_TJ/figures"
     axis_name = ('$J_{perp}$', '$t$')
