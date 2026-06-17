@@ -218,21 +218,30 @@ def load_gstates(path_to_tensor, base_filename,
     lam1_vals = params_grid[0, :, 0]   # λ₁ varies along rows (axis 0)
     lam2_vals = params_grid[:, 0, 1]   # λ₂ varies along cols (axis 1)
 
-
     if lambda1_range is None:
-        row_mask = np.ones(n, dtype=bool)
+        col_mask = np.ones(n, dtype=bool)   # λ₁ → columns
     else:
-        lo, hi   = lambda1_range
-        row_mask = (lam1_vals >= lo) & (lam1_vals <= hi)
+        lo, hi = lambda1_range
+        lo_idx = np.argmin(np.abs(lam1_vals - lo))
+        hi_idx = np.argmin(np.abs(lam1_vals - hi))
+        if lo_idx > hi_idx:
+            lo_idx, hi_idx = hi_idx, lo_idx
+        col_mask = np.zeros(n, dtype=bool)
+        col_mask[lo_idx:hi_idx + 1] = True
 
     if lambda2_range is None:
-        col_mask = np.ones(n, dtype=bool)
+        row_mask = np.ones(n, dtype=bool)   # λ₂ → rows
     else:
-        lo, hi   = lambda2_range
-        col_mask = (lam2_vals >= lo) & (lam2_vals <= hi)
+        lo, hi = lambda2_range
+        lo_idx = np.argmin(np.abs(lam2_vals - lo))
+        hi_idx = np.argmin(np.abs(lam2_vals - hi))
+        if lo_idx > hi_idx:
+            lo_idx, hi_idx = hi_idx, lo_idx
+        row_mask = np.zeros(n, dtype=bool)
+        row_mask[lo_idx:hi_idx + 1] = True
 
-    row_indices = np.where(row_mask)[0]
-    col_indices = np.where(col_mask)[0]
+    row_indices = np.where(row_mask)[0]   # selected y-axis indices
+    col_indices = np.where(col_mask)[0]   # selected x-axis indices
 
     if len(row_indices) == 0 or len(col_indices) == 0:
         raise ValueError("No grid points found in the requested parameter range.")

@@ -18,7 +18,7 @@ def plot_grad_g_angle_stream(grad_g, *, params_extent=(0, 1, 0, 1), axis_name=('
         n2 = grad_g.shape[1]
 
     fig, axs = plt.subplots(1, 2, figsize=figsize)
-    axs[0].matshow(np.angle(-grad_g), origin='lower', cmap='twilight',
+    axs[0].matshow(np.angle(-grad_g), cmap='twilight',
                    extent=params_extent, aspect='equal',
                    vmin=-np.pi, vmax=np.pi)
     # The minus in front of grad_g is there just to keep the same coloring scheme.
