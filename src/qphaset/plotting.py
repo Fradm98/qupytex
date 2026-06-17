@@ -19,7 +19,7 @@ def plot_grad_g_angle_stream(grad_g, *, params_extent=(0, 1, 0, 1), axis_name=('
 
     fig, axs = plt.subplots(1, 2, figsize=figsize)
     axs[0].matshow(np.angle(-grad_g), cmap='twilight',
-                   extent=params_extent, aspect='equal',
+                   extent=params_extent, origin='upper', aspect='equal',
                    vmin=-np.pi, vmax=np.pi)
     # The minus in front of grad_g is there just to keep the same coloring scheme.
     axs[0].set_xlabel(axis_name[0])
@@ -31,7 +31,7 @@ def plot_grad_g_angle_stream(grad_g, *, params_extent=(0, 1, 0, 1), axis_name=('
 
     xy = params_2d_lattice(params_extent[:2], params_extent[2:], n1=n1, n2=n2)
     X, Y = xy[:, 0].reshape((n1, n2)), xy[:, 1].reshape((n1, n2))
-    axs[1].streamplot(X, Y, np.real(grad_g), np.imag(grad_g), density=3)
+    axs[1].streamplot(X, Y, np.real(grad_g), np.imag(grad_g), origin='upper', density=3)
     axs[1].set_xlabel(axis_name[0])
     axs[1].set_ylabel(axis_name[1])
     return axs
