@@ -9,9 +9,9 @@ import os
 
 # ── Model config ──────────────────────────────────────────────────────────────
 model_name = "ANNNI"
-l   = 12
-n   = 5
-chi = 50
+l   = 20
+n   = 30
+chi = 100
 c1  = 1e-3
 
 # model_name = "Cluster"
@@ -35,12 +35,12 @@ c1  = 1e-3
 # ── Optional: restrict to a sub-region of the phase diagram ──────────────────
 # Set to None to load the full grid.
 # These are *inclusive* bounds on the original parameter axes.
-lambda1_range = (0.6,0.8)        # e.g. (1.0, 2.0)
-lambda2_range = (0.2,0.4)     # e.g. (1.5, 3.0)
+lambda1_range = (0.5,0.8)        # e.g. (1.0, 2.0)
+lambda2_range = (0.3,0.6)     # e.g. (1.5, 3.0)
 
 # ── Device ────────────────────────────────────────────────────────────────────
 device = 'pc'
-# device = 'ngt'
+device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/work"
@@ -73,8 +73,8 @@ lambda1_i, lambda1_f      = 0.5, 1.5
 lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
 
 # ANNNI zoom on floating phase
-lambda1_i, lambda1_f      = 0.5, 0.2 
-lambda2_i, lambda2_f      = 0.5, 0.8
+lambda1_i, lambda1_f      = 0.21, 0.8 
+lambda2_i, lambda2_f      = 0.01, 0.6
 
 # # Cluster
 # lambda1_i, lambda1_f      = 0.5, 1.5
