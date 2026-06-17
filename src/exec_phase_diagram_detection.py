@@ -1,137 +1,170 @@
-# import known packages
 import numpy as np
-import pickle
-import gzip
+import matplotlib.pyplot as plt
 
-from matplotlib import pyplot as plt
-
-from scipy import signal
-
-from tenpy.networks.mps import MPS
-
-# import adhoc packages
-from qphaset.phases import gstates_to_rdms_matrix, gstates_to_rdms_matrix_qs_mps, phases_vfield, sanitize_state
+from qphaset.phases import gstates_to_rdms_matrix_qs_mps, phases_vfield, sanitize_state
 from qphaset.plotting import plot_grad_g_angle_stream
 
-# choose which tensor network package to use:
-# tnpy, qsmps = True, False
-tnpy, qsmps = False, True
+from qupytex_io import load_gstates, describe_manifest, find_manifest
+import os
 
-# ## Phase transitions detection
-# Implemementation of one of the main results of the paper.
-
-model_name = "Rydberg"
-l = 12
-n = 25
-params = np.linspace(3, 1, n), np.linspace(1, 3, n) # upside-down
-
-
-model_name = "Cluster"
-l = 15
-n = 10
-params = np.linspace(0.5, 0.6, n), np.linspace(0.6, 0.5, n) # upside-down
+# ── Model config ──────────────────────────────────────────────────────────────
+model_name = "ANNNI"
+l   = 12
+n   = 5
+chi = 50
+c1  = 1e-3
 
 # model_name = "Cluster"
-# l = 50
-# n = 64
-# params = np.linspace(0.5, 1.5, n), np.linspace(1.5, 0.5, n) # upside-down
+# l   = 20
+# n   = 30
+# chi = 100
+# c1  = 1e-3
 
-model_name = "Rydberg"
-l = 20
-n = 30
-params = np.linspace(1, 3, n), np.linspace(1.8, 3, n) # upside-down
+# model_name = "Rydberg"
+# l   = 20
+# n   = 30
+# chi = 100
+# c1  = 1e-3
 
-model_name = "ANNNI"
-l = 12
-n = 20
-params = np.linspace(0.01, 1.5, n), np.linspace(1.5, 0.01, n) # upside-down
+# model_name = "tjv"
+# l   = 20
+# n   = 30
+# chi = 100
+# c1  = 1e-3
 
-model_name = "tjv"
-l = 12
-d = 3 # physical local dimension
-n = 30
-Jz = 10
-params = np.linspace(1, 3, n), np.linspace(3, 1, n) # upside-down
+# ── Optional: restrict to a sub-region of the phase diagram ──────────────────
+# Set to None to load the full grid.
+# These are *inclusive* bounds on the original parameter axes.
+lambda1_range = (0.6,0.8)        # e.g. (1.0, 2.0)
+lambda2_range = (0.2,0.4)     # e.g. (1.5, 3.0)
 
-params = map(lambda m: m.flatten(), np.meshgrid(*params, indexing='xy'))
-params = tuple(params)
-params = np.stack(params).T
-params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
-params_extent = tuple(params_extent[[0, 2, 1, 3]])
-
+# ── Device ────────────────────────────────────────────────────────────────────
 device = 'pc'
-device = 'ngt'
+# device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/work"
 elif device == 'ngt':
     device_path = "/eos/user/f/fdimarca"
 
-# dmrg params
-chi = 50 # bond dimension
-c1 = 1e-3 # eps symm. break.
+# ── Routing ───────────────────────────────────────────────────────────────────
 if model_name == 'ANNNI':
-    path_to_tensor = f"{device_path}/projects/2_ANNNI/results/data"
+    path_to_tensor  = f"{device_path}/projects/2_ANNNI/results/data"
     path_to_figures = f"{device_path}/projects/2_ANNNI/figures"
     axis_name = ('k', 'h')
-
 elif model_name == 'Cluster':
-    path_to_tensor = f"{device_path}/projects/3_CLUSTER/results/data"
+    path_to_tensor  = f"{device_path}/projects/3_CLUSTER/results/data"
     path_to_figures = f"{device_path}/projects/3_CLUSTER/figures"
-    axis_name = ('k', 'h')
-
+    axis_name = ('K', 'h')
 elif model_name == 'Rydberg':
-    path_to_tensor = f"{device_path}/projects/4_RYDBERG/results/data"
+    path_to_tensor  = f"{device_path}/projects/4_RYDBERG/results/data"
     path_to_figures = f"{device_path}/projects/4_RYDBERG/figures"
     axis_name = ('$\\Delta/\\Omega$', '$R_b/a$')
-
 elif model_name == 'tjv':
-    path_to_tensor = f"{device_path}/projects/6_TJ/results/data"
+    path_to_tensor  = f"{device_path}/projects/6_TJ/results/data"
     path_to_figures = f"{device_path}/projects/6_TJ/figures"
     axis_name = ('$J_{perp}$', '$t$')
-
 else:
-    raise SyntaxError("Choose a valid model among 'ANNNI', 'Cluster', and 'Rydberg'")
+    raise SyntaxError("Choose a valid model among 'ANNNI', 'Cluster', 'Rydberg', 'tjv'")
+
+# ── Reconstruct base filename (must match what exec_dmrg.py wrote) ────────────
+# ANNNI 
+lambda1_i, lambda1_f      = 0.5, 1.5 
+lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
+
+# ANNNI zoom on floating phase
+lambda1_i, lambda1_f      = 0.5, 0.2 
+lambda2_i, lambda2_f      = 0.5, 0.8
+
+# # Cluster
+# lambda1_i, lambda1_f      = 0.5, 1.5
+# lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
+
+# # Rydberg
+# lambda1_i, lambda1_f      = 1, 3
+# lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
+
+# # tjv
+# lambda1_i, lambda1_f      = 0.1, 5
+# lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
+
+# # tjv zoom (which phase is this?)
+# lambda1_i, lambda1_f      = 0.01, 2
+# lambda2_i, lambda2_f      = 4, 0.01 # reverse the indices
 
 
-filename = f'{path_to_tensor}/{model_name}_L_{l}_lambda_1_{params_extent[2]}-{params_extent[3]}_lambda_2_{params_extent[0]}-{params_extent[1]}_npoints_{n}x{n}_chi_{chi}_eps_{c1}.pkl'
+params_tmp    = np.linspace(lambda1_i, lambda1_f, n), np.linspace(lambda2_i, lambda2_f, n)
+params_tmp    = map(lambda m: m.flatten(), np.meshgrid(*params_tmp, indexing='xy'))
+params_tmp    = np.stack(tuple(params_tmp)).T
+
+params_grid = params_tmp.reshape(n, n, 2)
+lam1_min = float(params_grid[:, :, 0].min())
+lam1_max = float(params_grid[:, :, 0].max())
+lam2_min = float(params_grid[:, :, 1].min())
+lam2_max = float(params_grid[:, :, 1].max())
+
+base_filename = (
+    f"{model_name}_L_{l}"
+    f"_lambda_1_{lam1_min}-{lam1_max}"
+    f"_lambda_2_{lam2_min}-{lam2_max}"
+    f"_npoints_{n}x{n}_chi_{chi}_eps_{c1}"
+)
+
+# ── Find manifest automatically ───────────────────────────────────────────────
+manifests = find_manifest(path_to_tensor, model_name=model_name, l=l, n=n, chi=chi)
+
+if not manifests:
+    raise FileNotFoundError(f"No matching manifest in {path_to_tensor}")
+if len(manifests) > 1:
+    print("Multiple matches — using first. Set base_filename manually if wrong.")
+
+manifest_path = manifests[-1]
+# extract base_filename from the path
+base_filename = os.path.basename(manifest_path).replace(".manifest.pkl.gz", "")
+print(f"Using: {base_filename}")
+
+# ── (Optional) inspect what is stored before loading ─────────────────────────
+describe_manifest(path_to_tensor, base_filename)
+
+# ── Load (full grid or sub-region) ────────────────────────────────────────────
+result = load_gstates(
+    path_to_tensor = path_to_tensor,
+    base_filename  = base_filename,
+    lambda1_range  = lambda1_range,
+    lambda2_range  = lambda2_range,
+)
+
+params       = result["params"]          # (n'*m', 2)  flat
+params_grid  = result["params_grid"]     # (n', m', 2)
+gstates_grid = result["gstates_grid"]   # list[n'] of list[m']
+n_sub        = result["n_sub"]
+m_sub        = result["m_sub"]
+l            = result["l"]
+
+# flat list in row-major order, matching original convention
+gstates = [s for row in gstates_grid for s in row]
+gstates = [sanitize_state(s) for s in gstates]
 
 
-with gzip.open(filename, 'rb') as f:
-    data = pickle.load(f)
-params = data['params']
-l, n = data['l'], data['n']
-gstates = data['gstates']
-stats = data['stats']
-
-params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
-params_extent = tuple(params_extent[[0, 2, 1, 3]])
-
-import types
-if isinstance(gstates[0], (types.BuiltinFunctionType, types.BuiltinMethodType)):
-    gstates = [gstate() for gstate in gstates]
-
-# gstates = [
-#     sanitize_state(state)
-#     for row in gstates
-#     for state in (row if isinstance(row, (list, np.ndarray)) else [row])
-# ]
-
-# Select sites for the partial trace (gstates -> rdms, ie ground states to reduced density matrices).
-# Note the concept of site depends on the model. For example in the case of models based on the
-# class SpinChainNNN, the site corresponds to 2 qubits.
-
-# sites = [(l // 2) - 2, (l // 2) - 1, l // 2, (l // 2) + 1, (l // 2) + 2]
-# sites = [(l // 2) - 1, l // 2, (l // 2) + 1]
+# ── Sites for partial trace ───────────────────────────────────────────────────
 sites = [l // 2, (l // 2) + 1]
-# sites = [l // 2]
 
-if tnpy:
-    rdms = gstates_to_rdms_matrix(gstates, sites=sites)
-elif qsmps:
-    rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, generalized=True)
+# ── Compute RDMs and phase diagram ───────────────────────────────────────────
+rdms    = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, generalized=True)
+grad_g  = phases_vfield(rdms)
 
-grad_g = phases_vfield(rdms)
+plot_grad_g_angle_stream(
+    grad_g,
+    params_extent = [lam1_min, lam1_max, lam2_min, lam2_max],
+    axis_name     = axis_name,
+    theory_lines  = False,
+)
 
-plot_grad_g_angle_stream(grad_g, params_extent=params_extent, axis_name=axis_name, theory_lines=False);
-plt.savefig(f"{path_to_figures}/{model_name}_L_{l}_lambda_1_{params_extent[2]}-{params_extent[3]}_lambda_2_{params_extent[0]}-{params_extent[1]}_{n}x{n}_{len(sites)}-rdm.png")
+out = (
+    f"{path_to_figures}/{model_name}_L_{l}"
+    f"_lambda_1_{lam1_min}-{lam1_max}"
+    f"_lambda_2_{lam2_min}-{lam2_max}"
+    f"_{n_sub}x{m_sub}_{len(sites)}-rdm.png"
+)
+plt.savefig(out)
+print(f"Saved → {out}")
