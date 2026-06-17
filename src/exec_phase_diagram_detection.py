@@ -141,6 +141,11 @@ n_sub        = result["n_sub"]
 m_sub        = result["m_sub"]
 l            = result["l"]
 
+lam1_min = float(params_grid[:, :, 0].min())
+lam1_max = float(params_grid[:, :, 0].max())
+lam2_min = float(params_grid[:, :, 1].min())
+lam2_max = float(params_grid[:, :, 1].max())
+
 # flat list in row-major order, matching original convention
 gstates = [s for row in gstates_grid for s in row]
 gstates = [sanitize_state(s) for s in gstates]

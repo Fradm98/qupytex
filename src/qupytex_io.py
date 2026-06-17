@@ -231,7 +231,6 @@ def load_gstates(path_to_tensor, base_filename,
         lo, hi   = lambda2_range
         col_mask = (lam2_vals >= lo) & (lam2_vals <= hi)
 
-    print(row_mask, col_mask)
     row_indices = np.where(row_mask)[0]
     col_indices = np.where(col_mask)[0]
 
