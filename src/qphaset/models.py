@@ -359,6 +359,6 @@ def drmg_gstate_qs_mps(model:mps, dmrg_params={}) -> mps:
     # Assume the sites are all of the same nature.
     trunc_tol = dmrg_params.get('trunc_params').get('trunc_tol')
     trunc_chi = dmrg_params.get('trunc_params').get('trunc_chi')
-    energy, entropy, schmidt_vals, t_dmrg = model.DMRG(trunc_chi=trunc_chi, trunc_tol=trunc_tol, where=model.L//2)
+    energy, entropy, schmidt_vals, t_dmrg = model.DMRG(trunc_chi=trunc_chi, trunc_tol=trunc_tol, where=model.L//2, defect=dmrg_params["defect"])
         
     return model.sites

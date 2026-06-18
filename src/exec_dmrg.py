@@ -32,12 +32,12 @@ params = np.linspace(0.5, 0.8, n), np.linspace(0.5, 0.2, n) # upside-down
 # n = 30
 # params = np.linspace(1, 3, n), np.linspace(3, 1, n) # upside-down
 
-# model_name = "tjv"
-# l  = 12
-# d  = 3   # physical local dimension
-# n  = 30
-# Jz = 10
-# params = np.linspace(1, 3, n), np.linspace(3, 1, n)
+model_name = "tjv"
+l  = 12
+d  = 3   # physical local dimension
+n  = 5
+Jz = -1/2
+params = np.linspace(-4, 4, n), np.linspace(4, -4, n)
 
 # ── Device ────────────────────────────────────────────────────────────────────
 device = 'pc'
@@ -50,7 +50,8 @@ elif device == 'ngt':
 
 # ── DMRG params ───────────────────────────────────────────────────────────────
 chi = 50
-c1  = 1e-3
+c1  = 1e-2
+defect = True
 
 dmrg_params = {
     'type_shape': "rectangular",
@@ -60,6 +61,7 @@ dmrg_params = {
     },
     'd':         d,
     'max_hours': 16 / 3600,
+    'defect': defect,
 }
 
 # ── Routing ───────────────────────────────────────────────────────────────────

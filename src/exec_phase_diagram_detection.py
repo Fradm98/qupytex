@@ -26,21 +26,21 @@ c1  = 1e-3
 # chi = 100
 # c1  = 1e-3
 
-# model_name = "tjv"
-# l   = 20
-# n   = 30
-# chi = 100
-# c1  = 1e-3
+model_name = "tjv"
+l   = 12
+n   = 5
+chi = 50
+c1  = 1e-2
 
 # ── Optional: restrict to a sub-region of the phase diagram ──────────────────
 # Set to None to load the full grid.
 # These are *inclusive* bounds on the original parameter axes.
-lambda1_range = (0.5,0.8)        # e.g. (1.0, 2.0)
-lambda2_range = (0.3,0.6)     # e.g. (1.5, 3.0)
+lambda1_range = None        # e.g. (1.0, 2.0)
+lambda2_range = None     # e.g. (1.5, 3.0)
 
 # ── Device ────────────────────────────────────────────────────────────────────
 device = 'pc'
-device = 'ngt'
+# device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/work"
@@ -63,7 +63,7 @@ elif model_name == 'Rydberg':
 elif model_name == 'tjv':
     path_to_tensor  = f"{device_path}/projects/6_TJ/results/data"
     path_to_figures = f"{device_path}/projects/6_TJ/figures"
-    axis_name = ('$J_{perp}$', '$t$')
+    axis_name = ('$t$', '$V$')
 else:
     raise SyntaxError("Choose a valid model among 'ANNNI', 'Cluster', 'Rydberg', 'tjv'")
 
@@ -84,9 +84,9 @@ lambda2_i, lambda2_f      = 0.01, 0.6
 # lambda1_i, lambda1_f      = 1, 3
 # lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
 
-# # tjv
-# lambda1_i, lambda1_f      = 0.1, 5
-# lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
+# tjv
+lambda1_i, lambda1_f      = -4, 4
+lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
 
 # # tjv zoom (which phase is this?)
 # lambda1_i, lambda1_f      = 0.01, 2
