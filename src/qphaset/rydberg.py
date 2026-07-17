@@ -6,4 +6,4 @@ def model_rydberg_qs_mps(delta_omega, blockade_radius, chi, l, c1=0, d=2) -> mps
     an additional term that helps reducing the numerical issues with DMRG.
     
     """
-    return mps(L=l, d=d, model="Rydberg", chi=chi, h=delta_omega, J=blockade_radius, eps=c1)
+    return mps(L=l, d=d, model="Rydberg", chi=chi, h=delta_omega, J=blockade_radius**6, eps=c1)
