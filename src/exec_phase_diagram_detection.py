@@ -10,25 +10,29 @@ import os
 # ── Model config ──────────────────────────────────────────────────────────────
 model_name = "ANNNI"
 l   = 20
-n   = 30
+n1  = 30
+n2  = 30
 chi = 100
 c1  = 1e-3
 
 # model_name = "Cluster"
 # l   = 20
-# n   = 30
+# n1  = 30
+# n2  = 30
 # chi = 100
 # c1  = 1e-3
 
 # model_name = "Rydberg"
 # l   = 20
-# n   = 30
+# n1  = 30
+# n2  = 30
 # chi = 100
 # c1  = 1e-3
 
 model_name = "tjv"
 l   = 12
-n   = 5
+n1  = 5
+n2  = 5
 chi = 50
 c1  = 1e-2
 
@@ -93,11 +97,11 @@ lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
 # lambda2_i, lambda2_f      = 4, 0.01 # reverse the indices
 
 
-params_tmp    = np.linspace(lambda1_i, lambda1_f, n), np.linspace(lambda2_i, lambda2_f, n)
+params_tmp    = np.linspace(lambda1_i, lambda1_f, n2), np.linspace(lambda2_i, lambda2_f, n1)
 params_tmp    = map(lambda m: m.flatten(), np.meshgrid(*params_tmp, indexing='xy'))
 params_tmp    = np.stack(tuple(params_tmp)).T
 
-params_grid = params_tmp.reshape(n, n, 2)
+params_grid = params_tmp.reshape(n1, n2, 2)
 lam1_min = float(params_grid[:, :, 0].min())
 lam1_max = float(params_grid[:, :, 0].max())
 lam2_min = float(params_grid[:, :, 1].min())
@@ -107,11 +111,11 @@ base_filename = (
     f"{model_name}_L_{l}"
     f"_lambda_1_{lam1_min}-{lam1_max}"
     f"_lambda_2_{lam2_min}-{lam2_max}"
-    f"_npoints_{n}x{n}_chi_{chi}_eps_{c1}"
+    f"_npoints_{n1}x{n2}_chi_{chi}_eps_{c1}"
 )
 
 # ── Find manifest automatically ───────────────────────────────────────────────
-manifests = find_manifest(path_to_tensor, model_name=model_name, l=l, n=n, chi=chi)
+manifests = find_manifest(path_to_tensor, model_name=model_name, l=l, n1=n1, n2=n2, chi=chi)
 
 if not manifests:
     raise FileNotFoundError(f"No matching manifest in {path_to_tensor}")
@@ -134,11 +138,11 @@ result = load_gstates(
     lambda2_range  = lambda2_range,
 )
 
-params       = result["params"]          # (n'*m', 2)  flat
-params_grid  = result["params_grid"]     # (n', m', 2)
-gstates_grid = result["gstates_grid"]   # list[n'] of list[m']
-n_sub        = result["n_sub"]
-m_sub        = result["m_sub"]
+params       = result["params"]          # (n1'*n2', 2)  flat
+params_grid  = result["params_grid"]     # (n1', n2', 2)
+gstates_grid = result["gstates_grid"]   # list[n1'] of list[n2']
+n1_sub       = result["n1_sub"]
+n2_sub       = result["n2_sub"]
 l            = result["l"]
 
 lam1_min = float(params_grid[:, :, 0].min())
@@ -169,7 +173,7 @@ out = (
     f"{path_to_figures}/{model_name}_L_{l}"
     f"_lambda_1_{lam1_min}-{lam1_max}"
     f"_lambda_2_{lam2_min}-{lam2_max}"
-    f"_{n_sub}x{m_sub}_{len(sites)}-rdm.png"
+    f"_{n1_sub}x{n2_sub}_{len(sites)}-rdm.png"
 )
 plt.savefig(out)
 print(f"Saved → {out}")

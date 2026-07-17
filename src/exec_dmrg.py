@@ -14,11 +14,18 @@ from qupytex_io import save_gstates
 # ── Model config ──────────────────────────────────────────────────────────────
 
 model_name = "ANNNI"
-l = 12
+l = 30
 d = 2 # physical local dimension
-n = 5
+
+a = 0.005
 Jz = None
-params = np.linspace(0.5, 0.8, n), np.linspace(0.5, 0.2, n) # upside-down
+k_study = 0.01
+lam1_i, lam1_f = k_study - 2*a, k_study + 2*a 
+lam1_i, lam1_f = k_study - a, k_study + a 
+params = np.linspace(lam1_i, lam1_f,round((lam1_f - lam1_i) / a) + 1), np.linspace(0.95,1.05,round((1.2 - 0.8) / a) + 1) # upside-down
+n1 = len(params[0])
+n2 = len(params[1])
+# params = np.linspace(0.001, 0.001, n1), np.linspace(0.1, 1.2, n2) # upside-down
 
 # model_name = "Cluster"
 # l = 15
@@ -32,12 +39,12 @@ params = np.linspace(0.5, 0.8, n), np.linspace(0.5, 0.2, n) # upside-down
 # n = 30
 # params = np.linspace(1, 3, n), np.linspace(3, 1, n) # upside-down
 
-model_name = "tjv"
-l  = 12
-d  = 3   # physical local dimension
-n  = 5
-Jz = -1/2
-params = np.linspace(-4, 4, n), np.linspace(4, -4, n)
+# model_name = "tjv"
+# l  = 12
+# d  = 3   # physical local dimension
+# n  = 5
+# Jz = -1/2
+# params = np.linspace(-4, 4, n), np.linspace(4, -4, n)
 
 # ── Device ────────────────────────────────────────────────────────────────────
 device = 'pc'
@@ -85,7 +92,7 @@ params = map(lambda m: m.flatten(), np.meshgrid(*params, indexing='xy'))
 params = np.stack(tuple(params)).T    # shape (n*n, 2)
 
 # ── Run DMRG ──────────────────────────────────────────────────────────────────
-print(f"model: {model_name}, L:{l}, parameter space:{n}×{n}")
+print(f"model: {model_name}, L:{l}, parameter space:{n1}×{n2}")
 print(f"bond dimension: {chi}, eps: {c1}, device: {device}")
 
 gstates, stats = run_model(
@@ -95,7 +102,7 @@ gstates, stats = run_model(
 )
 
 # ── Build base filename (same convention as before) ───────────────────────────
-params_grid = params.reshape(n, n, 2)
+params_grid = params.reshape(n1, n2, 2)
 lam1_min = float(params_grid[:, :, 0].min())
 lam1_max = float(params_grid[:, :, 0].max())
 lam2_min = float(params_grid[:, :, 1].min())
@@ -105,7 +112,7 @@ base_filename = (
     f"{model_name}_L_{l}"
     f"_lambda_1_{lam1_min}-{lam1_max}"
     f"_lambda_2_{lam2_min}-{lam2_max}"
-    f"_npoints_{n}x{n}_chi_{chi}_eps_{c1}"
+    f"_npoints_{n1}x{n2}_chi_{chi}_eps_{c1}"
 )
 
 # ── Save in EOS-safe chunks ───────────────────────────────────────────────────
@@ -114,7 +121,8 @@ data = dict(
     gstates     = gstates,
     stats       = stats,
     l           = l,
-    n           = n,
+    n1          = n1,
+    n2          = n2,
     d           = d,
     chi         = chi,
     model_name  = model_name,

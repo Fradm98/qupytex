@@ -9,7 +9,7 @@ Layout on disk
 Every simulation produces a *manifest* file plus one or more *chunk* files:
 
     <base>.manifest.pkl.gz          ← index: grid metadata + chunk registry
-    <base>.chunk_000.pkl.gz         ← rows [0, R)   of the n×n grid
+    <base>.chunk_000.pkl.gz         ← rows [0, R)   of the n1×n2 grid
     <base>.chunk_001.pkl.gz         ← rows [R, 2R)
     ...
 
@@ -56,11 +56,12 @@ def _estimate_bytes_per_state(l, d, chi):
     """
     return 16 * l * d * chi ** 2
 
-def _rows_per_chunk(n, l, d, chi, max_file_gb):
-    bytes_per_row = n * _estimate_bytes_per_state(l, d, chi)   # n states per row
+def _rows_per_chunk(n1, n2, l, d, chi, max_file_gb):
+    """Compute how many rows fit in one chunk file."""
+    bytes_per_row = n2 * _estimate_bytes_per_state(l, d, chi)  # n2 states per row
     max_bytes     = max_file_gb * 1024 ** 3
     rows          = max(1, int(max_bytes // bytes_per_row))
-    return min(rows, n)                                          # never more than n
+    return min(rows, n1)                                         # never more than n1
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -79,9 +80,12 @@ def save_gstates(path_to_tensor, base_filename, data, max_file_gb=45):
         Stem shared by all chunk/manifest files (no extension).
     data : dict
         Must contain at minimum:
-            params      : np.ndarray, shape (n*n, 2)
-            gstates     : list of length n*n
-            l, n, d     : int
+            params      : np.ndarray, shape (n1*n2, 2)
+            gstates     : list of length n1*n2
+            l           : int
+            n1          : int  (number of rows    / λ₂ grid points)
+            n2          : int  (number of columns / λ₁ grid points)
+            d           : int
             chi         : int  (bond dimension)
             model_name  : str
             dmrg_params : dict
@@ -91,38 +95,38 @@ def save_gstates(path_to_tensor, base_filename, data, max_file_gb=45):
     """
     os.makedirs(path_to_tensor, exist_ok=True)
 
-    params      = np.asarray(data["params"])   # (n*n, 2)
+    params      = np.asarray(data["params"])   # (n1*n2, 2)
     gstates     = data["gstates"]
-    n           = data["n"]
+    n1          = data["n1"]
+    n2          = data["n2"]
     l           = data["l"]
     d           = data["d"]
     chi         = data["chi"]
 
-    assert len(gstates) == n * n, \
-        f"Expected {n*n} gstates, got {len(gstates)}"
+    assert len(gstates) == n1 * n2, \
+        f"Expected {n1*n2} gstates, got {len(gstates)}"
 
-    # ── reshape into n×n grid ──────────────────────────────────────────────
-    # params[i*n + j] corresponds to grid point (row=i, col=j)
-    params_grid = params.reshape(n, n, 2)
-    gstates_grid = [gstates[i * n:(i + 1) * n] for i in range(n)]
+    # ── reshape into n1×n2 grid ────────────────────────────────────────────
+    # params[i*n2 + j] corresponds to grid point (row=i, col=j)
+    params_grid  = params.reshape(n1, n2, 2)
+    gstates_grid = [gstates[i * n2:(i + 1) * n2] for i in range(n1)]
 
-    # ── decide chunk size ─────────────────────────────────────────────────
-    R = _rows_per_chunk(n, l, d, chi, max_file_gb)
-    n_chunks = math.ceil(n / R)
+    # ── decide chunk size ──────────────────────────────────────────────────
+    R        = _rows_per_chunk(n1, n2, l, d, chi, max_file_gb)
+    n_chunks = math.ceil(n1 / R)
 
-    print(f"[qupytex_io] grid={n}×{n}, rows_per_chunk={R}, n_chunks={n_chunks}")
+    print(f"[qupytex_io] grid={n1}×{n2}, rows_per_chunk={R}, n_chunks={n_chunks}")
 
     chunk_registry = []   # list of dicts, one per chunk
 
     for c in range(n_chunks):
         row_start = c * R
-        row_end   = min(row_start + R, n)           # exclusive
+        row_end   = min(row_start + R, n1)          # exclusive
 
-        chunk_params  = params_grid[row_start:row_end]          # (rows, n, 2)
-        chunk_gstates = gstates_grid[row_start:row_end]         # list of lists
+        chunk_params  = params_grid[row_start:row_end]      # (rows, n2, 2)
+        chunk_gstates = gstates_grid[row_start:row_end]     # list of lists
 
         # ── parameter extent for this chunk ───────────────────────────────
-        flat = chunk_params.reshape(-1, 2)
         lam1_min = float(chunk_params[:, :, 0].min())
         lam1_max = float(chunk_params[:, :, 0].max())
         lam2_min = float(chunk_params[:, :, 1].min())
@@ -132,19 +136,20 @@ def save_gstates(path_to_tensor, base_filename, data, max_file_gb=45):
             chunk_idx   = c,
             row_start   = row_start,
             row_end     = row_end,               # exclusive
-            lam1_range  = (float(lam1_min), float(lam1_max)),
-            lam2_range  = (float(lam2_min), float(lam2_max)),
+            lam1_range  = (lam1_min, lam1_max),
+            lam2_range  = (lam2_min, lam2_max),
             filename    = _chunk_path(path_to_tensor, base_filename, c),
         )
         chunk_registry.append(chunk_meta)
 
         chunk_data = dict(
-            params      = chunk_params,            # shape (rows, n, 2)
-            gstates     = chunk_gstates,           # list[list[MPS tensors]]
+            params      = chunk_params,          # shape (rows, n2, 2)
+            gstates     = chunk_gstates,         # list[list[MPS tensors]]
             row_start   = row_start,
             row_end     = row_end,
-            n           = n,
-            l           = data["l"],
+            n1          = n1,
+            n2          = n2,
+            l           = l,
             d           = d,
             chi         = chi,
             model_name  = data["model_name"],
@@ -161,13 +166,14 @@ def save_gstates(path_to_tensor, base_filename, data, max_file_gb=45):
     # ── write manifest ─────────────────────────────────────────────────────
     manifest = dict(
         base_filename = base_filename,
-        n             = n,
-        l             = data["l"],
+        n1            = n1,
+        n2            = n2,
+        l             = l,
         d             = d,
         chi           = chi,
         model_name    = data["model_name"],
         dmrg_params   = data["dmrg_params"],
-        params_grid   = params_grid,           # (n, n, 2) — tiny vs gstates
+        params_grid   = params_grid,             # (n1, n2, 2) — tiny vs gstates
         chunks        = chunk_registry,
     )
     mpath = _manifest_path(path_to_tensor, base_filename)
@@ -192,69 +198,72 @@ def load_gstates(path_to_tensor, base_filename,
     base_filename : str
         Stem shared by all files.
     lambda1_range : (float, float) or None
-        Inclusive [min, max] for λ₁. None = load all.
+        Inclusive [min, max] for λ₁ (column axis). None = load all.
     lambda2_range : (float, float) or None
-        Inclusive [min, max] for λ₂. None = load all.
+        Inclusive [min, max] for λ₂ (row axis). None = load all.
 
     Returns
     -------
     dict with keys:
-        params      : np.ndarray, shape (n'*n', 2)   — flat, matching gstates
-        params_grid : np.ndarray, shape (n', n', 2)  — 2-D grid view
-        gstates     : list of length n'*n'            — flat, row-major
-        gstates_grid: list of n' lists, each of n' states
-        row_indices : np.ndarray, shape (n',)         — original row indices
-        col_indices : np.ndarray, shape (n',)         — original col indices
-        n_sub       : int                             — n' (sub-grid size per axis)
+        params       : np.ndarray, shape (n1_sub*n2_sub, 2)  — flat, row-major
+        params_grid  : np.ndarray, shape (n1_sub, n2_sub, 2) — 2-D grid view
+        gstates      : list of length n1_sub*n2_sub           — flat, row-major
+        gstates_grid : list of n1_sub lists, each of n2_sub states
+        row_indices  : np.ndarray, shape (n1_sub,)            — original row indices
+        col_indices  : np.ndarray, shape (n2_sub,)            — original col indices
+        n1_sub       : int   — number of selected rows
+        n2_sub       : int   — number of selected columns
         l, d, chi, model_name, dmrg_params, stats
     """
     mpath    = _manifest_path(path_to_tensor, base_filename)
     manifest = _gz_load(mpath)
 
-    n            = manifest["n"]
-    params_grid  = manifest["params_grid"]   # (n, n, 2)
+    n1          = manifest["n1"]
+    n2          = manifest["n2"]
+    params_grid = manifest["params_grid"]   # (n1, n2, 2)
 
     # ── find which rows/cols fall inside the requested ranges ─────────────
-    lam1_vals = params_grid[0, :, 0]   # λ₁ varies along rows (axis 0)
-    lam2_vals = params_grid[:, 0, 1]   # λ₂ varies along cols (axis 1)
+    # λ₁ is stored in axis-1 (columns), λ₂ in axis-0 (rows)
+    lam1_vals = params_grid[0, :, 0]   # shape (n2,)
+    lam2_vals = params_grid[:, 0, 1]   # shape (n1,)
 
     if lambda1_range is None:
-        col_mask = np.ones(n, dtype=bool)   # λ₁ → columns
+        col_mask = np.ones(n2, dtype=bool)
     else:
         lo, hi = lambda1_range
         lo_idx = np.argmin(np.abs(lam1_vals - lo))
         hi_idx = np.argmin(np.abs(lam1_vals - hi))
         if lo_idx > hi_idx:
             lo_idx, hi_idx = hi_idx, lo_idx
-        col_mask = np.zeros(n, dtype=bool)
+        col_mask = np.zeros(n2, dtype=bool)
         col_mask[lo_idx:hi_idx + 1] = True
 
     if lambda2_range is None:
-        row_mask = np.ones(n, dtype=bool)   # λ₂ → rows
+        row_mask = np.ones(n1, dtype=bool)
     else:
         lo, hi = lambda2_range
         lo_idx = np.argmin(np.abs(lam2_vals - lo))
         hi_idx = np.argmin(np.abs(lam2_vals - hi))
         if lo_idx > hi_idx:
             lo_idx, hi_idx = hi_idx, lo_idx
-        row_mask = np.zeros(n, dtype=bool)
+        row_mask = np.zeros(n1, dtype=bool)
         row_mask[lo_idx:hi_idx + 1] = True
 
-    row_indices = np.where(row_mask)[0]   # selected y-axis indices
-    col_indices = np.where(col_mask)[0]   # selected x-axis indices
+    row_indices = np.where(row_mask)[0]   # selected λ₂ indices (axis 0)
+    col_indices = np.where(col_mask)[0]   # selected λ₁ indices (axis 1)
 
     if len(row_indices) == 0 or len(col_indices) == 0:
         raise ValueError("No grid points found in the requested parameter range.")
 
-    n_sub = len(row_indices)   # n' rows
-    m_sub = len(col_indices)   # n' cols (may differ from n_sub)
+    n1_sub = len(row_indices)
+    n2_sub = len(col_indices)
 
-    print(f"[qupytex_io] sub-grid: {n_sub}×{m_sub} "
+    print(f"[qupytex_io] sub-grid: {n1_sub}×{n2_sub} "
           f"(rows {row_indices[0]}–{row_indices[-1]}, "
           f"cols {col_indices[0]}–{col_indices[-1]})")
 
     # ── find which chunks overlap the needed rows ─────────────────────────
-    needed_rows = set(row_indices.tolist())
+    needed_rows    = set(row_indices.tolist())
     chunks_to_load = [
         c for c in manifest["chunks"]
         if set(range(c["row_start"], c["row_end"])) & needed_rows
@@ -264,8 +273,7 @@ def load_gstates(path_to_tensor, base_filename,
           f"{len(manifest['chunks'])} chunk(s)...")
 
     # ── load and assemble ─────────────────────────────────────────────────
-    # We build a temporary row→list-of-states dict
-    row_cache = {}    # global_row_idx → list of n states (full row)
+    row_cache = {}    # global_row_idx → list of n2 states (full row)
 
     for chunk_meta in chunks_to_load:
         cdata = _gz_load(chunk_meta["filename"])
@@ -277,18 +285,16 @@ def load_gstates(path_to_tensor, base_filename,
     # ── extract sub-grid ──────────────────────────────────────────────────
     gstates_grid = []
     for ri in row_indices:
-        full_row = row_cache[ri]           # list of n states
+        full_row = row_cache[ri]               # list of n2 states
         sub_row  = [full_row[ci] for ci in col_indices]
         gstates_grid.append(sub_row)
 
-    # flat lists / arrays — row-major, matching original convention
+    # flat lists / arrays — row-major
     gstates_flat = [s for row in gstates_grid for s in row]
-    params_sub   = params_grid[np.ix_(row_indices, col_indices)]  # (n', m', 2)
+    params_sub   = params_grid[np.ix_(row_indices, col_indices)]  # (n1_sub, n2_sub, 2)
     params_flat  = params_sub.reshape(-1, 2)
 
-    # recover stats from the last loaded chunk (or None)
-    stats = chunks_to_load[-1].get("stats") if chunks_to_load else None
-    # try to get stats from chunk data
+    # recover stats from the last loaded chunk
     last_chunk_data = _gz_load(chunks_to_load[-1]["filename"]) if chunks_to_load else {}
     stats = last_chunk_data.get("stats")
 
@@ -299,8 +305,8 @@ def load_gstates(path_to_tensor, base_filename,
         gstates_grid = gstates_grid,
         row_indices  = row_indices,
         col_indices  = col_indices,
-        n_sub        = n_sub,
-        m_sub        = m_sub,
+        n1_sub       = n1_sub,
+        n2_sub       = n2_sub,
         l            = manifest["l"],
         d            = manifest["d"],
         chi          = manifest["chi"],
@@ -314,10 +320,14 @@ def load_gstates(path_to_tensor, base_filename,
 # Convenience: list available chunks for a manifest
 # ─────────────────────────────────────────────────────────────────────────────
 
-def find_manifest(path_to_tensor, model_name=None, l=None, n=None, chi=None):
+def find_manifest(path_to_tensor, model_name=None, l=None,
+                  n1=None, n2=None, chi=None):
     """
     Find manifest files in a directory, optionally filtering by model/params.
     Useful when you're not sure of the exact filename.
+
+    For square grids you can pass n1=n2=n; for rectangular ones pass both
+    n1 and n2 separately (both must match if provided).
     """
     pattern = os.path.join(path_to_tensor, "*.manifest.pkl.gz")
     files   = glob.glob(pattern)
@@ -329,22 +339,26 @@ def find_manifest(path_to_tensor, model_name=None, l=None, n=None, chi=None):
     matches = []
     for f in files:
         name = os.path.basename(f)
-        if model_name and model_name not in name: continue
-        if l   and f"_L_{l}_"       not in name: continue
-        if n   and f"_{n}x{n}_"     not in name: continue
-        if chi and f"_chi_{chi}_"    not in name: continue
+        if model_name and model_name not in name:          continue
+        if l           and f"_L_{l}_"        not in name: continue
+        if n1          and f"_n1_{n1}_"      not in name: continue
+        if n2          and f"_n2_{n2}_"      not in name: continue
+        if chi         and f"_chi_{chi}_"    not in name: continue
         matches.append(f)
 
     for f in matches:
         print(f"  {os.path.basename(f)}")
     return matches
 
+
 def describe_manifest(path_to_tensor, base_filename):
     """Print a summary of what's stored in a manifest."""
     mpath    = _manifest_path(path_to_tensor, base_filename)
     manifest = _gz_load(mpath)
+    n1 = manifest["n1"]
+    n2 = manifest["n2"]
     print(f"Model      : {manifest['model_name']}")
-    print(f"Grid       : {manifest['n']}×{manifest['n']}")
+    print(f"Grid       : {n1}×{n2}")
     print(f"L, d, chi  : {manifest['l']}, {manifest['d']}, {manifest['chi']}")
     print(f"Chunks     : {len(manifest['chunks'])}")
     for c in manifest["chunks"]:

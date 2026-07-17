@@ -19,28 +19,32 @@ plt.rcParams.update({
 # ── Model config ──────────────────────────────────────────────────────────────
 model_name = "ANNNI"
 l   = 20
-n   = 30
+n1  = 30
+n2  = 30
 chi = 100
 c1  = 1e-3
 d   = 2
 
 model_name = "Cluster"
 l   = 20
-n   = 30
+n1  = 30
+n2  = 30
 chi = 100
 c1  = 1e-3
 d   = 2
 
 model_name = "Rydberg"
 l   = 20
-n   = 30
+n1  = 30
+n2  = 30
 chi = 100
 c1  = 1e-3
 d   = 2
 
 model_name = "tjv"
 l   = 20
-n   = 30
+n1  = 30
+n2  = 30
 chi = 100
 c1  = 1e-3
 d   = 3
@@ -100,7 +104,7 @@ lambda1_i, lambda1_f      = 0.01, 2
 lambda2_i, lambda2_f      = 4, 0.01 # reverse the indices
 
 
-params_tmp    = np.linspace(lambda1_i, lambda1_f, n), np.linspace(lambda2_i, lambda2_f, n)
+params_tmp    = np.linspace(lambda1_i, lambda1_f, n2), np.linspace(lambda2_i, lambda2_f, n1)
 params_tmp = map(lambda m: m.flatten(), np.meshgrid(*params_tmp, indexing='xy'))
 params_tmp = np.stack(tuple(params_tmp)).T
 pe         = np.concatenate([np.min(params_tmp, axis=0), np.max(params_tmp, axis=0)])
@@ -110,7 +114,7 @@ base_filename = (
     f"{model_name}_L_{l}"
     f"_lambda_1_{pe[2]}-{pe[3]}"
     f"_lambda_2_{pe[0]}-{pe[1]}"
-    f"_npoints_{n}x{n}_chi_{chi}_eps_{c1}"
+    f"_npoints_{n1}x{n2}_chi_{chi}_eps_{c1}"
 )
 
 describe_manifest(path_to_tensor, base_filename)
@@ -126,8 +130,8 @@ result = load_gstates(
 params       = result["params"]
 params_grid  = result["params_grid"]
 gstates_grid = result["gstates_grid"]
-n_sub        = result["n_sub"]
-m_sub        = result["m_sub"]
+n1_sub       = result["n1_sub"]
+n2_sub       = result["n2_sub"]
 l            = result["l"]
 
 gstates = [s for row in gstates_grid for s in row]
@@ -138,7 +142,7 @@ if isinstance(gstates[0], (types.BuiltinFunctionType, types.BuiltinMethodType)):
 params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
 params_extent = tuple(params_extent[[0, 2, 1, 3]])
 
-a = abs(params_grid[0, 0, 0] - params_grid[0, 1, 0]) if m_sub > 1 else 1.0
+a = abs(params_grid[0, 0, 0] - params_grid[0, 1, 0]) if n2_sub > 1 else 1.0
 
 # ── Sites ─────────────────────────────────────────────────────────────────────
 sites = [(l // 2) - 1, l // 2, (l // 2) + 1]
@@ -147,9 +151,9 @@ sites = [(l // 2) - 1, l // 2, (l // 2) + 1]
 rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, generalized=True)
 
 fidelity_rdms = []
-for i in range(n_sub):
+for i in range(n1_sub):
     row = []
-    for j in range(m_sub - 1):
+    for j in range(n2_sub - 1):
         row.append(uhlmann_fidelity(rdms[i, j], rdms[i, j + 1]))
     fidelity_rdms.append(row)
 
@@ -157,13 +161,13 @@ dfss_rdms = [discrete_fidelity_susceptibility(fid=row, a=a) for row in fidelity_
 
 # ── Global fidelity susceptibility ───────────────────────────────────────────
 fidelity = []
-for i in range(n_sub):
+for i in range(n1_sub):
     row = []
-    for j in range(m_sub - 1):
+    for j in range(n2_sub - 1):
         mps = MPS(L=l, d=d, model=model_name, chi=chi,
                   h=None, eps=c1, J=None, bc='obc')
-        mps.sites         = gstates[i * m_sub + j]
-        mps.ancilla_sites = gstates[i * m_sub + j + 1]
+        mps.sites         = gstates[i * n2_sub + j]
+        mps.ancilla_sites = gstates[i * n2_sub + j + 1]
         row.append(mps._compute_norm(site=1, mixed=True).copy())
     fidelity.append(row)
 
@@ -187,6 +191,6 @@ ax[1].set_ylabel(axis_name[1])
 fig.colorbar(im1, ax=ax[1])
 
 plt.tight_layout()
-out = f"{path_to_figures}/{model_name}_L_{l}_{n_sub}x{m_sub}_comparison_no_convol.png"
+out = f"{path_to_figures}/{model_name}_L_{l}_{n1_sub}x{n2_sub}_comparison_no_convol.png"
 fig.savefig(out, dpi=300)
 print(f"Saved → {out}")
