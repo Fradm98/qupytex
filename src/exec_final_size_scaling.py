@@ -12,11 +12,11 @@ from qupytex_io import load_gstates, describe_manifest, find_manifest
 
 # ── Model config ──────────────────────────────────────────────────────────────
 model_name = "ANNNI"
-l   = 30
-n1  = 3
-n2  = 81
+l   = 20
+n1  = 1
+n2  = 31
 chi = 50
-c1  = 1e-2
+c1  = 1e-5
 
 # model_name = "Cluster"
 # l   = 20
@@ -76,8 +76,9 @@ lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
 
 # ANNNI (Ising-like) 
 lambda1_i, lambda1_f      = 0.0, 0.02 
-lambda1_i, lambda1_f      = 0.005, 0.015 
-lambda2_i, lambda2_f      = 0.95, 1.05 # reverse the indices
+lambda1_i, lambda1_f      = 0.001, 0.001 
+lambda2_i, lambda2_f      = 0.1, 1.1 # reverse the indices
+direction = "v"
 
 # # ANNNI zoom on floating phase
 # lambda1_i, lambda1_f      = 0.5, 0.8 
@@ -139,7 +140,12 @@ params_extent = tuple(params_extent[[0, 2, 1, 3]])
 theta               = 0
 obs_ev_idx          = 2
 v0_first_schmidt_vec = False
-a = abs(params_grid[0, 0, 0] - params_grid[0, 1, 0]) if n2_sub > 1 else 1.0
+if direction=="h":
+    a = abs(params_grid[0, 0, 0] - params_grid[0, 1, 0]) if n1_sub > 1 else 1.0
+elif direction=="v":
+    a = abs(params_grid[0, 0, 1] - params_grid[0, 1, 1]) if n2_sub > 1 else 1.0
+    print(f"a: {a}")
+
 
 # ── Sites for partial trace ───────────────────────────────────────────────────
 sites = [l // 2 - 1, l // 2]
@@ -163,24 +169,19 @@ if select_sub_mat:
     params_extent = tuple(params_extent[[0, 1, 3, 2]])
     print(f"rdms shape after trimming:  {rdms.shape}")
 
+print(f"rdms shape: {rdms.shape}")
 fidelity_rdms = []
-for i in range(n2_sub):
+for i in range(n1_sub):
     row = []
-    for j in range(n1_sub - 1):
-        row.append(uhlmann_fidelity(rdms[j, i], rdms[j + 1, i]))
+    for j in range(n2_sub-1):
+        row.append(uhlmann_fidelity(rdms[i, j], rdms[i, j+1]))
     fidelity_rdms.append(row)
 
+print(np.asarray(fidelity_rdms).shape)
+print(np.asarray(fidelity_rdms))
+
 dfss_rdms = [discrete_fidelity_susceptibility(fid=row, a=a) for row in fidelity_rdms]
-print(dfss_rdms)
-plt.plot(dfss_rdms[2])
-plt.show()
-
-fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-
-im0 = ax.matshow(np.asarray(dfss_rdms), origin='lower',
-                    extent=params_extent, aspect='auto')
-ax.set_title("reduced fidelity susceptibility")
-ax.set_xlabel(axis_name[0])
-ax.set_ylabel(axis_name[1])
-fig.colorbar(im0, ax=ax)
+print(np.asarray(dfss_rdms).shape)
+print(np.asarray(dfss_rdms))
+plt.plot(np.linspace(lambda2_i, lambda2_f, n2)[:-1], dfss_rdms[0])
 plt.show()

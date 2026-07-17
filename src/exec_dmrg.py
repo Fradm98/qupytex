@@ -14,15 +14,16 @@ from qupytex_io import save_gstates
 # ── Model config ──────────────────────────────────────────────────────────────
 
 model_name = "ANNNI"
-l = 30
+l = 20
 d = 2 # physical local dimension
 
 a = 0.005
 Jz = None
-k_study = 0.01
+k_study = 0.001
 lam1_i, lam1_f = k_study - 2*a, k_study + 2*a 
 lam1_i, lam1_f = k_study - a, k_study + a 
-params = np.linspace(lam1_i, lam1_f,round((lam1_f - lam1_i) / a) + 1), np.linspace(0.95,1.05,round((1.2 - 0.8) / a) + 1) # upside-down
+params = np.linspace(lam1_i, lam1_f,round((lam1_f - lam1_i) / a) + 1), np.linspace(0.1,1.1,21) # upside-down
+params = np.linspace(k_study, k_study, 1), np.linspace(0.1,1.1,31) # upside-down
 n1 = len(params[0])
 n2 = len(params[1])
 # params = np.linspace(0.001, 0.001, n1), np.linspace(0.1, 1.2, n2) # upside-down
@@ -57,7 +58,7 @@ elif device == 'ngt':
 
 # ── DMRG params ───────────────────────────────────────────────────────────────
 chi = 50
-c1  = 1e-2
+c1  = 1e-5
 defect = True
 
 dmrg_params = {
