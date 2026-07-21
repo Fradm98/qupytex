@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from qiskit.quantum_info import SparsePauliOp
 
 from qs_mps.applications.ISING.utils import discrete_fidelity_susceptibility
+from qs_mps.utils import create_sequential_colors
 
 from qphaset.fidelity import uhlmann_fidelity
 from qphaset.phases import (gstates_to_rdms_matrix_qs_mps,
@@ -13,10 +14,11 @@ from qupytex_io import load_gstates, describe_manifest, find_manifest
 # ── Model config ──────────────────────────────────────────────────────────────
 model_name = "ANNNI"
 l   = 20
+Ls   = [120,140,160,180,200]
 n1  = 1
-n2  = 31
+n2  = 201
 chi = 50
-c1  = 1e-5
+c1  = 0
 
 # model_name = "Cluster"
 # l   = 20
@@ -46,7 +48,7 @@ lambda2_range = None        # e.g. (0.3, 1.0)
 
 # ── Device ────────────────────────────────────────────────────────────────────
 device = 'pc'
-# device = 'ngt'
+device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/work"
@@ -77,7 +79,7 @@ lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
 # ANNNI (Ising-like) 
 lambda1_i, lambda1_f      = 0.0, 0.02 
 lambda1_i, lambda1_f      = 0.001, 0.001 
-lambda2_i, lambda2_f      = 0.1, 1.1 # reverse the indices
+lambda2_i, lambda2_f      = 0.9, 1.1 # reverse the indices
 direction = "v"
 
 # # ANNNI zoom on floating phase
@@ -104,84 +106,87 @@ direction = "v"
 lam1_min, lam1_max = min(lambda1_i, lambda1_f), max(lambda1_i, lambda1_f)
 lam2_min, lam2_max = min(lambda2_i, lambda2_f), max(lambda2_i, lambda2_f)
 
-base_filename = (
-    f"{model_name}_L_{l}"
-    f"_lambda_1_{lam1_min}-{lam1_max}"
-    f"_lambda_2_{lam2_min}-{lam2_max}"
-    f"_npoints_{n1}x{n2}_chi_{chi}_eps_{c1}"
-)
+colors = create_sequential_colors(len(Ls))
+i = 0
+for l in Ls:
+    # ── Sites for partial trace ───────────────────────────────────────────────────
+    sites = [l // 2 - 1, l // 2]
 
 
-# ── (Optional) inspect what is stored ────────────────────────────────────────
-describe_manifest(path_to_tensor, base_filename)
-
-# ── Load ──────────────────────────────────────────────────────────────────────
-result = load_gstates(
-    path_to_tensor = path_to_tensor,
-    base_filename  = base_filename,
-    lambda1_range  = lambda1_range,
-    lambda2_range  = lambda2_range,
-)
-
-params       = result["params"]
-params_grid  = result["params_grid"]
-gstates_grid = result["gstates_grid"]
-n1_sub       = result["n1_sub"]
-n2_sub       = result["n2_sub"]
-l            = result["l"]
-
-gstates = [s for row in gstates_grid for s in row]
-gstates = [sanitize_state(s) for s in gstates]
-
-params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
-params_extent = tuple(params_extent[[0, 2, 1, 3]])
-
-# ── OPD config ────────────────────────────────────────────────────────────────
-theta               = 0
-obs_ev_idx          = 2
-v0_first_schmidt_vec = False
-if direction=="h":
-    a = abs(params_grid[0, 0, 0] - params_grid[0, 1, 0]) if n1_sub > 1 else 1.0
-elif direction=="v":
-    a = abs(params_grid[0, 0, 1] - params_grid[0, 1, 1]) if n2_sub > 1 else 1.0
-    print(f"a: {a}")
-
-
-# ── Sites for partial trace ───────────────────────────────────────────────────
-sites = [l // 2 - 1, l // 2]
-
-# ── RDMs ─────────────────────────────────────────────────────────────────────
-# rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, generalized=True)
-rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, shape=(n1_sub, n2_sub), generalized=True)
-
-# ── Optional sub-matrix trimming ─────────────────────────────────────────────
-select_sub_mat = False
-if select_sub_mat:
-    x0, y0 = 1, 1
-    x_vals  = np.linspace(lambda1_i, lambda1_f, n2_sub)
-    y_vals  = np.linspace(lambda2_i, lambda2_f, n1_sub)
-    print(f"rdms shape before trimming: {rdms.shape}")
-    rdms, params_extent_red_idx = extract_submatrix(rdms, x_vals, y_vals, x0, y0, dx=1, dy=1)
-    params_extent = np.array(
-        [x_vals[i] for i in params_extent_red_idx[:2]] +
-        [y_vals[i] for i in params_extent_red_idx[2:]]
+    base_filename = (
+        f"{model_name}_L_{l}"
+        f"_lambda_1_{lam1_min}-{lam1_max}"
+        f"_lambda_2_{lam2_min}-{lam2_max}"
+        f"_npoints_{n1}x{n2}_chi_{chi}_eps_{c1}"
     )
-    params_extent = tuple(params_extent[[0, 1, 3, 2]])
-    print(f"rdms shape after trimming:  {rdms.shape}")
 
-print(f"rdms shape: {rdms.shape}")
-fidelity_rdms = []
-for i in range(n1_sub):
-    row = []
-    for j in range(n2_sub-1):
-        row.append(uhlmann_fidelity(rdms[i, j], rdms[i, j+1]))
-    fidelity_rdms.append(row)
 
-print(np.asarray(fidelity_rdms).shape)
-print(np.asarray(fidelity_rdms))
+    # ── (Optional) inspect what is stored ────────────────────────────────────────
+    describe_manifest(path_to_tensor, base_filename)
 
-dfss_rdms = [discrete_fidelity_susceptibility(fid=row, a=a) for row in fidelity_rdms]
-print(np.asarray(dfss_rdms).shape)
-print(np.asarray(dfss_rdms))
-plt.plot(np.linspace(lambda2_i, lambda2_f, n2)[:-1], dfss_rdms[0])
+    # ── Load ──────────────────────────────────────────────────────────────────────
+    result = load_gstates(
+        path_to_tensor = path_to_tensor,
+        base_filename  = base_filename,
+        lambda1_range  = lambda1_range,
+        lambda2_range  = lambda2_range,
+    )
+
+    params       = result["params"]
+    params_grid  = result["params_grid"]
+    gstates_grid = result["gstates_grid"]
+    n1_sub       = result["n1_sub"]
+    n2_sub       = result["n2_sub"]
+    l            = result["l"]
+
+    gstates = [s for row in gstates_grid for s in row]
+    gstates = [sanitize_state(s) for s in gstates]
+
+    params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
+    params_extent = tuple(params_extent[[0, 2, 1, 3]])
+
+
+    if direction=="h":
+        a = abs(params_grid[0, 0, 0] - params_grid[0, 1, 0]) if n1_sub > 1 else 1.0
+    elif direction=="v":
+        a = abs(params_grid[0, 0, 1] - params_grid[0, 1, 1]) if n2_sub > 1 else 1.0
+        print(f"a: {a}")
+
+
+
+
+    # ── RDMs ─────────────────────────────────────────────────────────────────────
+    # rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, generalized=True)
+    rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, shape=(n1_sub, n2_sub), generalized=True)
+
+    # ── Optional sub-matrix trimming ─────────────────────────────────────────────
+    select_sub_mat = False
+    if select_sub_mat:
+        x0, y0 = 1, 1
+        x_vals  = np.linspace(lambda1_i, lambda1_f, n2_sub)
+        y_vals  = np.linspace(lambda2_i, lambda2_f, n1_sub)
+        print(f"rdms shape before trimming: {rdms.shape}")
+        rdms, params_extent_red_idx = extract_submatrix(rdms, x_vals, y_vals, x0, y0, dx=1, dy=1)
+        params_extent = np.array(
+            [x_vals[i] for i in params_extent_red_idx[:2]] +
+            [y_vals[i] for i in params_extent_red_idx[2:]]
+        )
+        params_extent = tuple(params_extent[[0, 1, 3, 2]])
+        print(f"rdms shape after trimming:  {rdms.shape}")
+
+    print(f"rdms shape: {rdms.shape}")
+    fidelity_rdms = []
+    for i in range(n1_sub):
+        row = []
+        for j in range(n2_sub-1):
+            row.append(uhlmann_fidelity(rdms[i, j], rdms[i, j+1]))
+        fidelity_rdms.append(row)
+
+    dfss_rdms = [discrete_fidelity_susceptibility(fid=row, a=a) for row in fidelity_rdms]
+    plt.plot(np.linspace(lambda2_i, lambda2_f, n2)[:-1], dfss_rdms[0], color=colors[i], label=f"L:{l}")
+
+    i+=1
+
+plt.legend()
 plt.show()
+plt.savefig(f"{path_to_figures}/{base_filename}_fss.png", dpi=300)
