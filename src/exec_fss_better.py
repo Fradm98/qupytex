@@ -47,8 +47,6 @@ def _load_and_compute_drfs(
     path_to_tensor,
     base_filename,
     direction,
-    lambda1_i, lambda1_f,
-    lambda2_i, lambda2_f,
     sites_fn=None,          # callable(l) -> list[int]; defaults to [l//2-1, l//2]
     lambda1_range=None,
     lambda2_range=None,
@@ -81,22 +79,22 @@ def _load_and_compute_drfs(
     gstates = [s for row in gstates_grid for s in row]
     gstates = [sanitize_state(s) for s in gstates]
 
-    # step size along the scan direction
+    # Derive axis and step directly from params_grid — never trust the
+    # passed-in lambda args, which may belong to a different (wider) grid.
     if direction == "h":
-        a = abs(params_grid[0, 0, 0] - params_grid[0, 1, 0]) if n1_sub > 1 else 1.0
+        axis_raw = params_grid[0, :, 0]        # λ₁ values along columns
     elif direction == "v":
-        a = abs(params_grid[0, 0, 1] - params_grid[0, 1, 1]) if n2_sub > 1 else 1.0
+        axis_raw = params_grid[:, 0, 1]        # λ₂ values along rows
     else:
         raise ValueError("direction must be 'h' or 'v'")
+
+    a = abs(axis_raw[1] - axis_raw[0]) if len(axis_raw) > 1 else 1.0
+    axis_mid = 0.5 * (axis_raw[:-1] + axis_raw[1:])   # midpoints
 
     rdms = gstates_to_rdms_matrix_qs_mps(
         gstates, sites=sites, shape=(n1_sub, n2_sub), generalized=True
     )
 
-    # axis values: midpoints between consecutive coupling values
-    # (drfs has length n2_sub - 1)
-    axis_raw = np.linspace(lambda2_i, lambda2_f, n2_sub)
-    axis_mid = 0.5 * (axis_raw[:-1] + axis_raw[1:])   # midpoints
 
     drfs_rows = []
     for i in range(n1_sub):
@@ -218,8 +216,6 @@ def plot_chi(
             path_to_tensor=path_to_tensor,
             base_filename=bf,
             direction=direction,
-            lambda1_i=spec["lam1_min"], lambda1_f=spec["lam1_max"],
-            lambda2_i=spec["lam2_min"], lambda2_f=spec["lam2_max"],
             sites_fn=sites_fn,
         )
         drfs_row = drfs_rows[row_index]
@@ -373,8 +369,6 @@ def plot_L(
             path_to_tensor=path_to_tensor,
             base_filename=bf,
             direction=direction,
-            lambda1_i=spec["lam1_min"], lambda1_f=spec["lam1_max"],
-            lambda2_i=spec["lam2_min"], lambda2_f=spec["lam2_max"],
             sites_fn=sites_fn,
         )
         drfs_row = drfs_rows[row_index]
