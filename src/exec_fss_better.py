@@ -279,6 +279,8 @@ def plot_chi(
 def _log_model(x, a, b):
     return a * np.log(x) + b
 
+def _lin_model(x, a, b):
+    return a * x + b
 
 def plot_L(
     *,
@@ -432,11 +434,13 @@ def plot_L(
 
     # ── log fit ───────────────────────────────────────────────────────────────
     Ls_arr = np.array(Ls, dtype=float)
+    Ls_arr = np.log(Ls_arr)
+    peak_vals = np.sqrt(peak_vals)
 
     sigma = peak_errs if np.any(peak_errs > 0) else None
     try:
         popt, pcov = curve_fit(
-            _log_model, Ls_arr, peak_vals,
+            _lin_model, Ls_arr, peak_vals,
             sigma=sigma, absolute_sigma=True, p0=[1.0, 0.0]
         )
         perr = np.sqrt(np.diag(pcov))
@@ -489,7 +493,6 @@ def plot_L(
         fit_a_err=a_err, fit_b_err=b_err,
     )
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Example usage  (edit to match your actual grids)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -508,34 +511,37 @@ if __name__ == "__main__":
     #
     # Example: chi=50 was run on 401 pts in (0.8, 1.2),
     #          chi=100 on 201 pts in (0.9, 1.1).
+    Ls   = [100, 120, 140, 160, 180, 200]
     chi_grid_specs = {
-        50:  dict(n1=1, n2=401, lam1_min=0.001, lam1_max=0.001,
-                  lam2_min=0.8, lam2_max=1.2, c1=0),
+        50:  dict(n1=1, n2=201, lam1_min=0.001, lam1_max=0.001,
+                lam2_min=0.9, lam2_max=1.1, c1=0),
         100: dict(n1=1, n2=201, lam1_min=0.001, lam1_max=0.001,
-                  lam2_min=0.9, lam2_max=1.1, c1=0),
+                lam2_min=0.9, lam2_max=1.1, c1=0),
         150: dict(n1=1, n2=201, lam1_min=0.001, lam1_max=0.001,
-                  lam2_min=0.9, lam2_max=1.1, c1=0),
+                lam2_min=0.9, lam2_max=1.1, c1=0),
     }
 
-    # ── 1) plot_chi: fix L=120, vary chi ─────────────────────────────────────
-    L_fixed = 120
+    res_chi_L = []
     chis    = [50, 100, 150]
+    for l in Ls:
 
-    res_chi = plot_chi(
-        model_name=model_name,
-        l=L_fixed,
-        chis=chis,
-        path_to_tensor=path_to_tensor,
-        path_to_figures=path_to_figures,
-        direction="v",
-        grid_specs=[chi_grid_specs[c] for c in chis],
-        center=1.0,
-        half_width=0.05,   # restrict to [0.95, 1.05]; adjust as needed
-    )
+        # ── 1) plot_chi: fix L=120, vary chi ─────────────────────────────────────
 
-    # ── 2) plot_L: fix chi=50, vary L ────────────────────────────────────────
-    Ls   = [120, 140, 160, 180, 200]
-    chi  = 50
+        res_chi = plot_chi(
+            model_name=model_name,
+            l=l,
+            chis=chis,
+            path_to_tensor=path_to_tensor,
+            path_to_figures=path_to_figures,
+            direction="v",
+            grid_specs=[chi_grid_specs[c] for c in chis],
+            center=1.0,
+            half_width=0.05,   # restrict to [0.95, 1.05]; adjust as needed
+        )
+        res_chi_L.append(res_chi)
+
+    # ── 2) plot_L: fix chi, vary L ────────────────────────────────────────
+    chi  = 150
 
     # pass differences from step 1 as chi_errors so the log-fit y-errors
     # include chi-convergence uncertainty

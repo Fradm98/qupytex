@@ -6,7 +6,7 @@ from qs_mps.applications.ISING.utils import discrete_fidelity_susceptibility
 from qs_mps.utils import create_sequential_colors
 
 from qphaset.fidelity import uhlmann_fidelity
-from qphaset.phases import (gstates_to_rdms_matrix_qs_mps,
+from qphaset.phases import (gstates_to_rdms_matrix_qs_mps, phases_vfield, constructing_order_parameter,
                              sanitize_state, extract_submatrix)
 
 from qupytex_io import load_gstates, describe_manifest, find_manifest
@@ -14,11 +14,11 @@ from qupytex_io import load_gstates, describe_manifest, find_manifest
 # ── Model config ──────────────────────────────────────────────────────────────
 model_name = "ANNNI"
 l   = 20
-Ls   = [120,140,160,180,200]
+Ls   = [12]
 n1  = 1
-n2  = 201
+n2  = 31
 chi = 50
-c1  = 0
+c1  = 1e-5
 
 # model_name = "Cluster"
 # l   = 20
@@ -48,7 +48,7 @@ lambda2_range = None        # e.g. (0.3, 1.0)
 
 # ── Device ────────────────────────────────────────────────────────────────────
 device = 'pc'
-device = 'ngt'
+# device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/work"
@@ -80,6 +80,7 @@ lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
 lambda1_i, lambda1_f      = 0.0, 0.02 
 lambda1_i, lambda1_f      = 0.001, 0.001 
 lambda2_i, lambda2_f      = 0.9, 1.1 # reverse the indices
+lambda2_i, lambda2_f      = 0.1, 1.1 # reverse the indices
 direction = "v"
 
 # # ANNNI zoom on floating phase
@@ -108,6 +109,7 @@ lam2_min, lam2_max = min(lambda2_i, lambda2_f), max(lambda2_i, lambda2_f)
 
 colors = create_sequential_colors(len(Ls))
 i = 0
+theta = 0
 for l in Ls:
     # ── Sites for partial trace ───────────────────────────────────────────────────
     sites = [l // 2 - 1, l // 2]
@@ -153,11 +155,26 @@ for l in Ls:
         print(f"a: {a}")
 
 
-
-
     # ── RDMs ─────────────────────────────────────────────────────────────────────
     # rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, generalized=True)
     rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, shape=(n1_sub, n2_sub), generalized=True)
+
+    theta = -np.pi/2
+    obs_eval, obs_ev, obs, rdms_flat = constructing_order_parameter(rdms, theta=theta)
+    print(f"eigenvalues of the observable:\n{obs_eval}")
+    print(SparsePauliOp.from_operator(obs))
+
+    # ── Plots ─────────────────────────────────────────────────────────────────────
+    figure_name = (
+        f"{path_to_figures}/{model_name}_L_{l}"
+        f"_{n1_sub}x{n2_sub}_{len(sites)}-rdm_OPD"
+    )
+
+    meas = [np.trace(rdm @ obs) for rdm in rdms_flat]
+
+    plt.plot(np.abs(meas))
+    plt.show()
+    plt.savefig(f"{figure_name}_fss.png", dpi=300)
 
     # ── Optional sub-matrix trimming ─────────────────────────────────────────────
     select_sub_mat = False

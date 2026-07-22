@@ -4,7 +4,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import numpy as np
 from tqdm import tqdm
-from .fidelity import fidelity_laplacian
+from .fidelity import fidelity_laplacian, fidelity_dxx
 from scipy import signal
 from .filters import SOBEL, bump_kernel, upsampling_base
 from .models import get_rdm, reduced_density_matrix, generalized_k_rdm
@@ -88,7 +88,41 @@ def phases_vfield(rdms_matrix, *, scale=2, grad=True, fidelity=None,
     assert scale in {1, 2}
     # TODO Exclude boundaries, re-eval domain. Accept params_extend param
     # and return adjusted version of it.
+    
+    n_rows, n_cols = rdms_matrix.shape[:2]
+    is_1d_rows = n_rows == 1   # trivial along rows, scan along cols
+    is_1d_cols = n_cols == 1   # trivial along cols, scan along rows
 
+    # ── 1D case: one axis is trivial ─────────────────────────────────────────
+    if is_1d_rows or is_1d_cols:
+        if method == 'tr_qfim':
+            raise NotImplementedError("tr_qfim not supported for 1D grids")
+
+        if is_1d_rows:
+            # scan axis is columns → fidelity_dxx directly, no swap
+            g = fidelity_dxx(rdms_matrix, fidelity=fidelity,
+                             log=(log_g if log_g else False))
+            # g has shape (1, n_cols-2); squeeze to 1D
+            g = g[0]
+        else:
+            # scan axis is rows → swap so fidelity_dxx runs along cols,
+            # then swap back
+            g = fidelity_dxx(np.swapaxes(rdms_matrix, 0, 1),
+                             fidelity=fidelity,
+                             log=(log_g if log_g else False))
+            g = g[0]   # shape (n_rows-2,) after squeeze
+
+        if log_g:
+            g = np.log(np.maximum(-g, 1e-6))
+
+        if not grad:
+            return g
+
+        # 1D gradient: simple first difference (central where possible)
+        g_grad = np.gradient(g)
+        return g_grad
+
+    # ── 2D case: original logic ───────────────────────────────────────────────
     g = None
     if method == 'fidelity':
         g = fidelity_laplacian(rdms_matrix, fidelity=fidelity)
@@ -196,3 +230,62 @@ def extract_submatrix(matrix, x_vals, y_vals,
     submatrix = matrix[y_start:y_end, x_start:x_end].copy()
 
     return submatrix, tuple([x_start, x_end, y_start, y_end])
+
+def constructing_order_parameter(rdms, *, theta=0.0, fidelity=None, log_g=False):
+    """
+    1D analogue of the phases_vfield pipeline for rdms with one trivial axis.
+
+    Parameters
+    ----------
+    rdms    : np.ndarray of shape (1, n, rdm_sz, rdm_sz) or (n, 1, rdm_sz, rdm_sz)
+    theta   : float – rotation angle for the phase partition (default 0)
+    fidelity, log_g – forwarded to phases_vfield
+
+    Returns
+    -------
+    obs_eval : np.ndarray   – eigenvalues of the observable
+    obs_ev   : np.ndarray   – eigenvectors of the observable
+    rhoa     : np.ndarray   – averaged RDM of region A (gradient > 0)
+    rhob     : np.ndarray   – averaged RDM of region B (gradient < 0)
+    or (None, None, None, None) if one region is empty.
+    """
+    n_rows, n_cols = rdms.shape[:2]
+    is_1d_rows = n_rows == 1
+    is_1d_cols = n_cols == 1
+    if not (is_1d_rows or is_1d_cols):
+        raise ValueError("phases_vfield_1d expects one axis of size 1, "
+                         f"got shape {rdms.shape[:2]}. Use phases_vfield instead.")
+
+    grad_g = phases_vfield(rdms, scale=1, grad=True,
+                           fidelity=fidelity, log_g=log_g)
+
+    ys = np.sin(np.angle(grad_g.astype(complex)) + theta)
+
+    if is_1d_rows:
+        rdms_inner = rdms[0, 1:-1]   # (n_cols-2, rdm_sz, rdm_sz)
+    else:
+        rdms_inner = rdms[1:-1, 0]   # (n_rows-2, rdm_sz, rdm_sz)
+
+    ys_flat   = ys.flatten()
+    rdms_flat = rdms_inner            # already flat along scan axis
+
+    idx_a = np.nonzero(ys_flat > 0)[0]
+    idx_b = np.nonzero(ys_flat < 0)[0]
+
+    if len(idx_a) == 0 or len(idx_b) == 0:
+        print(f"[phases_vfield_1d] Warning: one region is empty "
+              f"(|A|={len(idx_a)}, |B|={len(idx_b)}). "
+              f"Try adjusting theta.")
+        return None, None, None, None
+
+    rhoa = np.average(rdms_flat[idx_a], axis=0)
+    rhob = np.average(rdms_flat[idx_b], axis=0)
+    rhoa /= np.linalg.norm(rhoa)
+    rhob /= np.linalg.norm(rhob)
+
+    dot_ab = np.trace(rhoa @ rhob)
+    obs    = rhoa - dot_ab * rhob
+    obs   /= np.sqrt(1 - dot_ab ** 2)
+
+    obs_eval, obs_ev = np.linalg.eigh(obs)
+    return obs_eval, obs_ev, obs, rdms_flat
