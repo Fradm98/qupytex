@@ -231,7 +231,7 @@ def extract_submatrix(matrix, x_vals, y_vals,
 
     return submatrix, tuple([x_start, x_end, y_start, y_end])
 
-def constructing_order_parameter(rdms, *, theta=0.0, fidelity=None, log_g=False):
+def constructing_order_parameter(rdms, *, idxi=0, idxf=-1, theta=0.0, fidelity=None, log_g=False):
     """
     1D analogue of the phases_vfield pipeline for rdms with one trivial axis.
 
@@ -256,10 +256,16 @@ def constructing_order_parameter(rdms, *, theta=0.0, fidelity=None, log_g=False)
         raise ValueError("phases_vfield_1d expects one axis of size 1, "
                          f"got shape {rdms.shape[:2]}. Use phases_vfield instead.")
 
+    rdms = rdms[:,idxi:idxf,:,:]
     grad_g = phases_vfield(rdms, scale=1, grad=True,
-                           fidelity=fidelity, log_g=log_g)
+                                fidelity=None, log_g=False)
 
     ys = np.sin(np.angle(grad_g.astype(complex)) + theta)
+    
+    # grad_g = phases_vfield(rdms, scale=1, grad=True,
+    #                        fidelity=fidelity, log_g=log_g)
+    
+    # ys = np.sin(np.angle(grad_g.astype(complex)) + theta)
 
     if is_1d_rows:
         rdms_inner = rdms[0, 1:-1]   # (n_cols-2, rdm_sz, rdm_sz)
@@ -269,8 +275,10 @@ def constructing_order_parameter(rdms, *, theta=0.0, fidelity=None, log_g=False)
     ys_flat   = ys.flatten()
     rdms_flat = rdms_inner            # already flat along scan axis
 
-    idx_a = np.nonzero(ys_flat > 0)[0]
-    idx_b = np.nonzero(ys_flat < 0)[0]
+
+    idx_a = np.nonzero(ys_flat > 0)
+    idx_b = np.nonzero(ys_flat < 0)
+    print(idx_a, idx_b)
 
     if len(idx_a) == 0 or len(idx_b) == 0:
         print(f"[phases_vfield_1d] Warning: one region is empty "

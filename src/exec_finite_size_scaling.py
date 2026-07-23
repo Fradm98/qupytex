@@ -14,7 +14,7 @@ from qupytex_io import load_gstates, describe_manifest, find_manifest
 # ── Model config ──────────────────────────────────────────────────────────────
 model_name = "ANNNI"
 l   = 20
-Ls   = [12]
+Ls   = [20]
 n1  = 1
 n2  = 31
 chi = 50
@@ -110,6 +110,8 @@ lam2_min, lam2_max = min(lambda2_i, lambda2_f), max(lambda2_i, lambda2_f)
 colors = create_sequential_colors(len(Ls))
 i = 0
 theta = 0
+idxi = 15
+idxf = n2-1
 for l in Ls:
     # ── Sites for partial trace ───────────────────────────────────────────────────
     sites = [l // 2 - 1, l // 2]
@@ -159,8 +161,24 @@ for l in Ls:
     # rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, generalized=True)
     rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, shape=(n1_sub, n2_sub), generalized=True)
 
+    print(f"rdms shape: {rdms.shape}")
+
+    idxi = 6
+    idxf = 20
     theta = -np.pi/2
-    obs_eval, obs_ev, obs, rdms_flat = constructing_order_parameter(rdms, theta=theta)
+    # theta = 0
+    # rdms = rdms[:,idxi:idxf,:,:]
+    # grad_g = phases_vfield(rdms, scale=1, grad=True,
+                            #    fidelity=None, log_g=False)
+    
+    # plt.plot(grad_g)
+    # plt.plot(np.linspace(lambda2_i,lambda2_f,n2)[idxi+1:idxf-1],grad_g)
+    # plt.show()
+    # ys = np.sin(np.angle(grad_g.astype(complex)) + theta)
+
+    # plt.plot(np.linspace(lambda2_i,lambda2_f,n2)[idxi+1:idxf-1],np.sign(ys))
+    # plt.show()
+    obs_eval, obs_ev, obs, rdms_flat = constructing_order_parameter(rdms, idxi=idxi, idxf=idxf, theta=theta)
     print(f"eigenvalues of the observable:\n{obs_eval}")
     print(SparsePauliOp.from_operator(obs))
 
@@ -173,37 +191,36 @@ for l in Ls:
     meas = [np.trace(rdm @ obs) for rdm in rdms_flat]
 
     plt.plot(np.abs(meas))
-    plt.show()
     plt.savefig(f"{figure_name}_fss.png", dpi=300)
+    # plt.show()
 
     # ── Optional sub-matrix trimming ─────────────────────────────────────────────
-    select_sub_mat = False
-    if select_sub_mat:
-        x0, y0 = 1, 1
-        x_vals  = np.linspace(lambda1_i, lambda1_f, n2_sub)
-        y_vals  = np.linspace(lambda2_i, lambda2_f, n1_sub)
-        print(f"rdms shape before trimming: {rdms.shape}")
-        rdms, params_extent_red_idx = extract_submatrix(rdms, x_vals, y_vals, x0, y0, dx=1, dy=1)
-        params_extent = np.array(
-            [x_vals[i] for i in params_extent_red_idx[:2]] +
-            [y_vals[i] for i in params_extent_red_idx[2:]]
-        )
-        params_extent = tuple(params_extent[[0, 1, 3, 2]])
-        print(f"rdms shape after trimming:  {rdms.shape}")
+    # select_sub_mat = False
+    # if select_sub_mat:
+    #     x0, y0 = 1, 1
+    #     x_vals  = np.linspace(lambda1_i, lambda1_f, n2_sub)
+    #     y_vals  = np.linspace(lambda2_i, lambda2_f, n1_sub)
+    #     print(f"rdms shape before trimming: {rdms.shape}")
+    #     rdms, params_extent_red_idx = extract_submatrix(rdms, x_vals, y_vals, x0, y0, dx=1, dy=1)
+    #     params_extent = np.array(
+    #         [x_vals[i] for i in params_extent_red_idx[:2]] +
+    #         [y_vals[i] for i in params_extent_red_idx[2:]]
+    #     )
+    #     params_extent = tuple(params_extent[[0, 1, 3, 2]])
+    #     print(f"rdms shape after trimming:  {rdms.shape}")
 
-    print(f"rdms shape: {rdms.shape}")
-    fidelity_rdms = []
-    for i in range(n1_sub):
-        row = []
-        for j in range(n2_sub-1):
-            row.append(uhlmann_fidelity(rdms[i, j], rdms[i, j+1]))
-        fidelity_rdms.append(row)
+    # fidelity_rdms = []
+    # for i in range(n1_sub):
+    #     row = []
+    #     for j in range(n2_sub-1):
+    #         row.append(uhlmann_fidelity(rdms[i, j], rdms[i, j+1]))
+    #     fidelity_rdms.append(row)
 
-    dfss_rdms = [discrete_fidelity_susceptibility(fid=row, a=a) for row in fidelity_rdms]
-    plt.plot(np.linspace(lambda2_i, lambda2_f, n2)[:-1], dfss_rdms[0], color=colors[i], label=f"L:{l}")
+    # dfss_rdms = [discrete_fidelity_susceptibility(fid=row, a=a) for row in fidelity_rdms]
+    # plt.plot(np.linspace(lambda2_i, lambda2_f, n2)[:-1], dfss_rdms[0], color=colors[i], label=f"L:{l}")
 
-    i+=1
+    # i+=1
 
-plt.legend()
-plt.show()
-plt.savefig(f"{path_to_figures}/{base_filename}_fss.png", dpi=300)
+# plt.legend()
+# plt.show()
+# plt.savefig(f"{path_to_figures}/{base_filename}_fss.png", dpi=300)
