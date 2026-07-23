@@ -286,14 +286,34 @@ def constructing_order_parameter(rdms, *, idxi=0, idxf=-1, theta=0.0, fidelity=N
               f"Try adjusting theta.")
         return None, None, None, None
 
-    rhoa = np.average(rdms_flat[idx_a], axis=0)
-    rhob = np.average(rdms_flat[idx_b], axis=0)
-    rhoa /= np.linalg.norm(rhoa)
-    rhob /= np.linalg.norm(rhob)
+    # rhoa = np.average(rdms_flat[idx_a], axis=0)
+    # rhob = np.average(rdms_flat[idx_b], axis=0)
+    # rhoa = rdms_flat[idx_a][0]
+    # rhob = rdms_flat[idx_b][-1]
+
+    # normalize all candidates
+    rhos_a = rdms_flat[idx_a]
+    rhos_b = rdms_flat[idx_b]
+    rhos_a /= np.linalg.norm(rhos_a, axis=(1,2), keepdims=True)
+    rhos_b /= np.linalg.norm(rhos_b, axis=(1,2), keepdims=True)
+
+    # compute all pairwise dot products at once: shape (len_a, len_b)
+    dots = np.einsum('aij,bji->ab', rhos_a, rhos_b).real
+
+    # find the minimizing pair
+    best_i, best_j = np.unravel_index(np.argmin(dots), dots.shape)
+    rhoa = rhos_a[best_i]
+    rhob = rhos_b[best_j]
+
+
+    # rhoa /= np.linalg.norm(rhoa) # , ord='fro')
+    # rhob /= np.linalg.norm(rhob) # , ord='fro')
 
     dot_ab = np.trace(rhoa @ rhob)
     obs    = rhoa - dot_ab * rhob
     obs   /= np.sqrt(1 - dot_ab ** 2)
+
+    print(f"dot_ab = {dot_ab:.6f}, sqrt(1-dot_ab^2) = {np.sqrt(1 - dot_ab**2):.6f}")
 
     obs_eval, obs_ev = np.linalg.eigh(obs)
     return obs_eval, obs_ev, obs, rdms_flat

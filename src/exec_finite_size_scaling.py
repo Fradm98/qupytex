@@ -1,50 +1,26 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
 from qiskit.quantum_info import SparsePauliOp
 
-from qs_mps.applications.ISING.utils import discrete_fidelity_susceptibility
 from qs_mps.utils import create_sequential_colors
 
-from qphaset.fidelity import uhlmann_fidelity
-from qphaset.phases import (gstates_to_rdms_matrix_qs_mps, phases_vfield, constructing_order_parameter,
-                             sanitize_state, extract_submatrix)
+from qphaset.phases import (gstates_to_rdms_matrix_qs_mps, constructing_order_parameter,
+                             sanitize_state)
 
-from qupytex_io import load_gstates, describe_manifest, find_manifest
+from qupytex_io import load_gstates, describe_manifest
 
 # ── Model config ──────────────────────────────────────────────────────────────
 model_name = "ANNNI"
-l   = 20
-Ls   = [20]
-n1  = 1
-n2  = 31
-chi = 50
-c1  = 1e-5
-
-# model_name = "Cluster"
-# l   = 20
-# n1  = 30
-# n2  = 30
-# chi = 100
-# c1  = 1e-3
-
-# model_name = "Rydberg"
-# l   = 20
-# n1  = 30
-# n2  = 30
-# chi = 100
-# c1  = 1e-3
-
-# model_name = "tjv"
-# l   = 20
-# n1  = 30
-# n2  = 30
-# chi = 100
-# c1  = 1e-3
+Ls   = [14, 16, 18, 20, 22]         # system sizes for FSS
+n1   = 1
+n2   = 31
+chi  = 50
+c1   = 1e-5
 
 # ── Optional: restrict to a sub-region ───────────────────────────────────────
-# Set to None to load the full grid.
-lambda1_range = None        # e.g. (0.5, 1.2)
-lambda2_range = None        # e.g. (0.3, 1.0)
+lambda1_range = None
+lambda2_range = None
 
 # ── Device ────────────────────────────────────────────────────────────────────
 device = 'pc'
@@ -71,51 +47,35 @@ elif model_name == 'Rydberg':
 else:
     raise SyntaxError("Choose a valid model among 'ANNNI', 'Cluster', 'Rydberg'")
 
-# ── Reconstruct base filename (must match what exec_dmrg.py wrote) ────────────
-# ANNNI 
-lambda1_i, lambda1_f      = 0.5, 1.5 
-lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
-
-# ANNNI (Ising-like) 
-lambda1_i, lambda1_f      = 0.0, 0.02 
-lambda1_i, lambda1_f      = 0.001, 0.001 
-lambda2_i, lambda2_f      = 0.9, 1.1 # reverse the indices
-lambda2_i, lambda2_f      = 0.1, 1.1 # reverse the indices
+# ── Scan parameters ───────────────────────────────────────────────────────────
+lambda1_i, lambda1_f = 0.001, 0.001
+lambda2_i, lambda2_f = 0.4,   1.1
 direction = "v"
-
-# # ANNNI zoom on floating phase
-# lambda1_i, lambda1_f      = 0.5, 0.8 
-# lambda2_i, lambda2_f      = 0.01, 1.5
-
-# # Cluster
-# lambda1_i, lambda1_f      = 0.5, 1.5
-# lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
-
-# # Rydberg
-# lambda1_i, lambda1_f      = 1, 3
-# lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
-
-# # tjv
-# lambda1_i, lambda1_f      = 0.1, 5
-# lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
-
-# # tjv zoom (which phase is this?)
-# lambda1_i, lambda1_f      = 0.01, 2
-# lambda2_i, lambda2_f      = 4, 0.01 # reverse the indices
-
 
 lam1_min, lam1_max = min(lambda1_i, lambda1_f), max(lambda1_i, lambda1_f)
 lam2_min, lam2_max = min(lambda2_i, lambda2_f), max(lambda2_i, lambda2_f)
 
-colors = create_sequential_colors(len(Ls))
-i = 0
-theta = 0
-idxi = 15
-idxf = n2-1
-for l in Ls:
-    # ── Sites for partial trace ───────────────────────────────────────────────────
-    sites = [l // 2 - 1, l // 2]
+# ── Observable construction parameters ───────────────────────────────────────
+idxi  = 6
+idxf  = 20
+theta = -np.pi / 2
 
+# ── FSS fit model ─────────────────────────────────────────────────────────────
+# max_h { d<M>/dh } = a'' * L^(1/nu) * (1 + b'' * L^(-theta_exp/nu))
+def fss_model(L, a_pp, nu, b_pp, theta_exp):
+    return a_pp * L ** (1.0 / nu) * (1.0 + b_pp * L ** (-theta_exp / nu))
+
+# ── Collect results across system sizes ──────────────────────────────────────
+colors       = create_sequential_colors(len(Ls))
+peak_vals    = []   # max susceptibility for each L
+peak_lambdas = []   # lambda at peak for each L
+
+fig_op,  ax_op  = plt.subplots(figsize=(7, 4))
+fig_sus, ax_sus = plt.subplots(figsize=(7, 4))
+
+for color, l in zip(colors, Ls):
+
+    sites = [l // 2 - 1, l // 2]
 
     base_filename = (
         f"{model_name}_L_{l}"
@@ -124,11 +84,8 @@ for l in Ls:
         f"_npoints_{n1}x{n2}_chi_{chi}_eps_{c1}"
     )
 
-
-    # ── (Optional) inspect what is stored ────────────────────────────────────────
     describe_manifest(path_to_tensor, base_filename)
 
-    # ── Load ──────────────────────────────────────────────────────────────────────
     result = load_gstates(
         path_to_tensor = path_to_tensor,
         base_filename  = base_filename,
@@ -143,84 +100,142 @@ for l in Ls:
     n2_sub       = result["n2_sub"]
     l            = result["l"]
 
-    gstates = [s for row in gstates_grid for s in row]
-    gstates = [sanitize_state(s) for s in gstates]
+    gstates = [sanitize_state(s) for row in gstates_grid for s in row]
 
-    params_extent = np.concatenate([np.min(params, axis=0), np.max(params, axis=0)])
-    params_extent = tuple(params_extent[[0, 2, 1, 3]])
+    if direction == "h":
+        d_lambda = abs(params_grid[0, 0, 0] - params_grid[0, 1, 0]) if n1_sub > 1 else 1.0
+    elif direction == "v":
+        d_lambda = abs(params_grid[0, 0, 1] - params_grid[0, 1, 1]) if n2_sub > 1 else 1.0
+    print(f"L={l}  d_lambda={d_lambda:.6f}")
 
-
-    if direction=="h":
-        a = abs(params_grid[0, 0, 0] - params_grid[0, 1, 0]) if n1_sub > 1 else 1.0
-    elif direction=="v":
-        a = abs(params_grid[0, 0, 1] - params_grid[0, 1, 1]) if n2_sub > 1 else 1.0
-        print(f"a: {a}")
-
-
-    # ── RDMs ─────────────────────────────────────────────────────────────────────
-    # rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, generalized=True)
-    rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, shape=(n1_sub, n2_sub), generalized=True)
-
+    # ── RDMs ─────────────────────────────────────────────────────────────────
+    rdms = gstates_to_rdms_matrix_qs_mps(
+        gstates, sites=sites, shape=(n1_sub, n2_sub), generalized=True
+    )
     print(f"rdms shape: {rdms.shape}")
 
-    idxi = 6
-    idxf = 20
-    theta = -np.pi/2
-    # theta = 0
-    # rdms = rdms[:,idxi:idxf,:,:]
-    # grad_g = phases_vfield(rdms, scale=1, grad=True,
-                            #    fidelity=None, log_g=False)
-    
-    # plt.plot(grad_g)
-    # plt.plot(np.linspace(lambda2_i,lambda2_f,n2)[idxi+1:idxf-1],grad_g)
-    # plt.show()
-    # ys = np.sin(np.angle(grad_g.astype(complex)) + theta)
-
-    # plt.plot(np.linspace(lambda2_i,lambda2_f,n2)[idxi+1:idxf-1],np.sign(ys))
-    # plt.show()
-    obs_eval, obs_ev, obs, rdms_flat = constructing_order_parameter(rdms, idxi=idxi, idxf=idxf, theta=theta)
-    print(f"eigenvalues of the observable:\n{obs_eval}")
+    # ── Build observable M ───────────────────────────────────────────────────
+    obs_eval, obs_ev, obs, rdms_flat = constructing_order_parameter(
+        rdms, idxi=idxi, idxf=idxf, theta=theta
+    )
+    print(f"Observable eigenvalues: {obs_eval}")
     print(SparsePauliOp.from_operator(obs))
 
-    # ── Plots ─────────────────────────────────────────────────────────────────────
-    figure_name = (
-        f"{path_to_figures}/{model_name}_L_{l}"
-        f"_{n1_sub}x{n2_sub}_{len(sites)}-rdm_OPD"
-    )
+    # ── λ axis for the flat rdms (idxi..idxf window) ─────────────────────────
+    lambdas_full   = np.linspace(lambda2_i, lambda2_f, n2_sub)
+    lambdas_window = lambdas_full[idxi:idxf]          # matches rdms_flat length
+    n_flat         = len(rdms_flat)
+    # constructing_order_parameter may return fewer points than idxf-idxi
+    # (e.g. it drops boundary points); align from the left
+    lambdas_window = lambdas_window[:n_flat]
 
-    meas = [np.trace(rdm @ obs) for rdm in rdms_flat]
+    # ── Order parameter  <M>(λ) ──────────────────────────────────────────────
+    order_param = np.array([np.trace(rdm @ obs).real for rdm in rdms_flat])
 
-    plt.plot(np.abs(meas))
-    plt.savefig(f"{figure_name}_fss.png", dpi=300)
-    # plt.show()
+    # ── Susceptibility  χ(λ) = d<M>/dλ  (centered finite difference) ─────────
+    susceptibility  = (order_param[2:] - order_param[:-2]) / (2.0 * d_lambda)
+    lambdas_inner   = lambdas_window[1:-1]
 
-    # ── Optional sub-matrix trimming ─────────────────────────────────────────────
-    # select_sub_mat = False
-    # if select_sub_mat:
-    #     x0, y0 = 1, 1
-    #     x_vals  = np.linspace(lambda1_i, lambda1_f, n2_sub)
-    #     y_vals  = np.linspace(lambda2_i, lambda2_f, n1_sub)
-    #     print(f"rdms shape before trimming: {rdms.shape}")
-    #     rdms, params_extent_red_idx = extract_submatrix(rdms, x_vals, y_vals, x0, y0, dx=1, dy=1)
-    #     params_extent = np.array(
-    #         [x_vals[i] for i in params_extent_red_idx[:2]] +
-    #         [y_vals[i] for i in params_extent_red_idx[2:]]
-    #     )
-    #     params_extent = tuple(params_extent[[0, 1, 3, 2]])
-    #     print(f"rdms shape after trimming:  {rdms.shape}")
+    # ── Locate peak with sub-grid precision (parabolic interpolation) ─────────
+    i_peak = np.argmax(susceptibility)
+    if 1 <= i_peak <= len(susceptibility) - 2:
+        coeffs     = np.polyfit(lambdas_inner[i_peak-1:i_peak+2],
+                                susceptibility[i_peak-1:i_peak+2], 2)
+        lambda_c_L = -coeffs[1] / (2.0 * coeffs[0])
+        chi_peak   = np.polyval(coeffs, lambda_c_L)
+    else:
+        lambda_c_L = lambdas_inner[i_peak]
+        chi_peak   = susceptibility[i_peak]
 
-    # fidelity_rdms = []
-    # for i in range(n1_sub):
-    #     row = []
-    #     for j in range(n2_sub-1):
-    #         row.append(uhlmann_fidelity(rdms[i, j], rdms[i, j+1]))
-    #     fidelity_rdms.append(row)
+    print(f"L={l}  lambda_c(L)={lambda_c_L:.5f}  chi_peak={chi_peak:.5f}")
+    peak_vals.append(chi_peak)
+    peak_lambdas.append(lambda_c_L)
 
-    # dfss_rdms = [discrete_fidelity_susceptibility(fid=row, a=a) for row in fidelity_rdms]
-    # plt.plot(np.linspace(lambda2_i, lambda2_f, n2)[:-1], dfss_rdms[0], color=colors[i], label=f"L:{l}")
+    # ── Plots per L ───────────────────────────────────────────────────────────
+    ax_op.plot(lambdas_window, order_param,
+               color=color, label=f"$L={l}$")
+    ax_sus.plot(lambdas_inner, susceptibility,
+                color=color, label=f"$L={l}$")
+    ax_sus.axvline(lambda_c_L, color=color, ls='--', lw=0.8)
 
-    # i+=1
+# ── Dress order-parameter plot ────────────────────────────────────────────────
+ax_op.set_xlabel(f"$\\lambda$ ({axis_name[1]})", fontsize=13)
+ax_op.set_ylabel(r"$\langle M \rangle$", fontsize=13)
+ax_op.set_title(f"{model_name} — order parameter", fontsize=13)
+ax_op.legend(fontsize=10)
+fig_op.tight_layout()
+fig_op.savefig(f"{path_to_figures}/{model_name}_order_parameter_fss.png", dpi=300)
+print("Saved order-parameter figure.")
 
-# plt.legend()
-# plt.show()
-# plt.savefig(f"{path_to_figures}/{base_filename}_fss.png", dpi=300)
+# ── Dress susceptibility plot ─────────────────────────────────────────────────
+ax_sus.set_xlabel(f"$\\lambda$ ({axis_name[1]})", fontsize=13)
+ax_sus.set_ylabel(r"$\chi = \partial\langle M\rangle / \partial\lambda$", fontsize=13)
+ax_sus.set_title(f"{model_name} — magnetic susceptibility", fontsize=13)
+ax_sus.legend(fontsize=10)
+fig_sus.tight_layout()
+fig_sus.savefig(f"{path_to_figures}/{model_name}_susceptibility_fss.png", dpi=300)
+print("Saved susceptibility figure.")
+
+# ── FSS fit: chi_peak ~ a'' L^(1/nu) (1 + b'' L^(-theta/nu)) ────────────────
+Ls_arr    = np.array(Ls, dtype=float)
+peaks_arr = np.array(peak_vals, dtype=float)
+
+if len(Ls) >= 4:
+    # Ising 2D priors: nu=1, theta~2
+    p0 = [peaks_arr[0] / Ls_arr[0], 1.0, 0.1, 2.0]
+    try:
+        popt, pcov = curve_fit(fss_model, Ls_arr, peaks_arr, p0=p0,
+                               maxfev=10_000)
+        perr = np.sqrt(np.diag(pcov))
+        a_pp, nu_fit, b_pp, theta_fit = popt
+        print("\n── FSS fit results ──────────────────────────────")
+        print(f"  a''    = {a_pp:.4f}  ±  {perr[0]:.4f}")
+        print(f"  nu     = {nu_fit:.4f}  ±  {perr[1]:.4f}   (Ising 2D: 1.0)")
+        print(f"  b''    = {b_pp:.4f}  ±  {perr[2]:.4f}")
+        print(f"  theta  = {theta_fit:.4f}  ±  {perr[3]:.4f}")
+
+        # ── FSS plot: chi_peak vs L ───────────────────────────────────────────
+        fig_fss, ax_fss = plt.subplots(figsize=(5, 4))
+        L_fine = np.linspace(Ls_arr[0] * 0.9, Ls_arr[-1] * 1.1, 200)
+        ax_fss.plot(Ls_arr, peaks_arr, 'o', color='steelblue',
+                    ms=7, label="data")
+        ax_fss.plot(L_fine, fss_model(L_fine, *popt), '-', color='tomato',
+                    label=(rf"fit: $\nu={nu_fit:.3f}\pm{perr[1]:.3f}$,"
+                           rf" $\theta={theta_fit:.3f}\pm{perr[3]:.3f}$"))
+        ax_fss.set_xlabel("$L$", fontsize=13)
+        ax_fss.set_ylabel(r"$\max_\lambda\,\chi(L)$", fontsize=13)
+        ax_fss.set_title(f"{model_name} — FSS of peak susceptibility", fontsize=12)
+        ax_fss.legend(fontsize=9)
+        fig_fss.tight_layout()
+        fig_fss.savefig(f"{path_to_figures}/{model_name}_fss_fit.png", dpi=300)
+        print("Saved FSS fit figure.")
+
+        # ── lambda_c extrapolation plot ───────────────────────────────────────
+        # lambda_c(L) - lambda_c(inf) ~ L^{-1/nu}  =>  plot vs L^{-1/nu_fit}
+        lc_arr = np.array(peak_lambdas)
+        x_fss  = Ls_arr ** (-1.0 / nu_fit)
+        coeffs_lc = np.polyfit(x_fss, lc_arr, 1)
+        lambda_c_inf = coeffs_lc[1]
+        print(f"\n  lambda_c(inf) ~ {lambda_c_inf:.5f}  (linear extrap. in L^{{-1/nu}})")
+
+        fig_lc, ax_lc = plt.subplots(figsize=(5, 4))
+        ax_lc.plot(x_fss, lc_arr, 'o', color='steelblue', ms=7, label="data")
+        x_fit = np.linspace(0, x_fss.max() * 1.05, 100)
+        ax_lc.plot(x_fit, np.polyval(coeffs_lc, x_fit), '--', color='tomato',
+                   label=rf"extrap. $\lambda_c(\infty)={lambda_c_inf:.4f}$")
+        ax_lc.set_xlabel(rf"$L^{{-1/\nu}}$  ($\nu={nu_fit:.3f}$)", fontsize=13)
+        ax_lc.set_ylabel(r"$\lambda_c(L)$", fontsize=13)
+        ax_lc.set_title(f"{model_name} — critical point extrapolation", fontsize=12)
+        ax_lc.legend(fontsize=9)
+        fig_lc.tight_layout()
+        fig_lc.savefig(f"{path_to_figures}/{model_name}_lambda_c_extrap.png", dpi=300)
+        print("Saved lambda_c extrapolation figure.")
+
+    except RuntimeError as e:
+        print(f"FSS fit did not converge: {e}")
+        print("  Try providing better initial guesses in p0.")
+else:
+    print(f"\nOnly {len(Ls)} system sizes — need at least 4 for a reliable FSS fit.")
+    print("Peak susceptibilities:", dict(zip([int(l) for l in Ls_arr], peaks_arr.tolist())))
+
+plt.show()
