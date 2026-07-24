@@ -5,7 +5,7 @@ from qiskit.quantum_info import SparsePauliOp
 
 from qs_mps.utils import create_sequential_colors
 
-from qphaset.phases import (gstates_to_rdms_matrix_qs_mps, constructing_order_parameter,
+from qphaset.phases import (gstates_to_rdms_matrix_qs_mps, constructing_order_parameter, make_obs_vec,
                              sanitize_state)
 
 from qupytex_io import load_gstates, describe_manifest
@@ -49,7 +49,7 @@ else:
 
 # ── Scan parameters ───────────────────────────────────────────────────────────
 lambda1_i, lambda1_f = 0.001, 0.001
-lambda2_i, lambda2_f = 0.4,   1.1
+lambda2_i, lambda2_f = 0.4,   0.9
 direction = "v"
 
 lam1_min, lam1_max = min(lambda1_i, lambda1_f), max(lambda1_i, lambda1_f)
@@ -76,6 +76,7 @@ fig_sus, ax_sus = plt.subplots(figsize=(7, 4))
 for color, l in zip(colors, Ls):
 
     sites = [l // 2 - 1, l // 2]
+    sites = [l // 2]
 
     base_filename = (
         f"{model_name}_L_{l}"
@@ -129,10 +130,20 @@ for color, l in zip(colors, Ls):
     # (e.g. it drops boundary points); align from the left
     lambdas_window = lambdas_window[:n_flat]
 
-    # ── Order parameter  <M>(λ) ──────────────────────────────────────────────
-    order_param = np.array([np.trace(rdm @ obs).real for rdm in rdms_flat])
+    # # ── Order parameter  <M>(λ) ──────────────────────────────────────────────
+    # order_param = np.array([np.trace(rdm @ obs).real for rdm in rdms_flat])
 
-    # ── Susceptibility  χ(λ) = d<M>/dλ  (centered finite difference) ─────────
+    # # ── Susceptibility  χ(λ) = d<M>/dλ  (centered finite difference) ─────────
+    # susceptibility  = (order_param[2:] - order_param[:-2]) / (2.0 * d_lambda)
+    # susceptibility  = np.abs(susceptibility)
+    # lambdas_inner   = lambdas_window[1:-1]
+
+
+    # ── Order parameter vec <M>(λ) ──────────────────────────────────────────────
+    obs_vec = make_obs_vec(obs_ev=obs_ev, obs_eval=obs_eval, obs_ev_idx=0)
+    order_param = np.array([np.trace(rdm @ obs_vec).real for rdm in rdms_flat])
+
+    # ── Susceptibility vec χ(λ) = d<M>/dλ  (centered finite difference) ─────────
     susceptibility  = (order_param[2:] - order_param[:-2]) / (2.0 * d_lambda)
     susceptibility  = np.abs(susceptibility)
     lambdas_inner   = lambdas_window[1:-1]
@@ -255,7 +266,7 @@ crit_vals_err = np.array([x_err] * len(Ls))
 # Perform the linear fit
 xdata = Ls
 ydata = peak_lambdas
-p_opt, co_opt = curve_fit(pow_law, xdata, ydata, sigma=crit_vals_err, absolute_sigma=True) # , bounds=([0,-np.inf,-2],[1,np.inf,np.inf]))
+p_opt, co_opt = curve_fit(pow_law, xdata, ydata, sigma=crit_vals_err, absolute_sigma=True, maxfev=2000) #, bounds=([0,-np.inf,0],[10,np.inf,10]))
 
 # Extract the optimal parameters
 a_opt, b_opt, c_opt = p_opt

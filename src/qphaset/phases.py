@@ -291,6 +291,9 @@ def constructing_order_parameter(rdms, *, idxi=0, idxf=-1, theta=0.0, fidelity=N
     # rhoa = rdms_flat[idx_a][0]
     # rhob = rdms_flat[idx_b][-1]
 
+    # rhoa /= np.linalg.norm(rhoa) # , ord='fro')
+    # rhob /= np.linalg.norm(rhob) # , ord='fro')
+    
     # normalize all candidates
     rhos_a = rdms_flat[idx_a]
     rhos_b = rdms_flat[idx_b]
@@ -304,10 +307,6 @@ def constructing_order_parameter(rdms, *, idxi=0, idxf=-1, theta=0.0, fidelity=N
     best_i, best_j = np.unravel_index(np.argmin(dots), dots.shape)
     rhoa = rhos_a[best_i]
     rhob = rhos_b[best_j]
-
-
-    # rhoa /= np.linalg.norm(rhoa) # , ord='fro')
-    # rhob /= np.linalg.norm(rhob) # , ord='fro')
 
     dot_ab = np.trace(rhoa @ rhob)
     obs    = rhoa - dot_ab * rhob
