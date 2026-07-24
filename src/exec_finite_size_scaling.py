@@ -5,16 +5,16 @@ from qiskit.quantum_info import SparsePauliOp
 
 from qs_mps.utils import create_sequential_colors
 
-from qphaset.phases import (gstates_to_rdms_matrix_qs_mps, constructing_order_parameter, make_obs_vec,
+from qphaset.phases import (gstates_to_rdms_matrix_qs_mps, constructing_order_parameter, make_obs_vec, phases_vfield, decompose_obs,
                              sanitize_state)
 
 from qupytex_io import load_gstates, describe_manifest
 
 # ── Model config ──────────────────────────────────────────────────────────────
 model_name = "ANNNI"
-Ls   = [20, 21, 22, 23, 24]         # system sizes for FSS
+Ls   = [30, 40, 50, 60]         # system sizes for FSS
 n1   = 1
-n2   = 31
+n2   = 71
 chi  = 50
 c1   = 1e-5
 
@@ -49,16 +49,16 @@ else:
 
 # ── Scan parameters ───────────────────────────────────────────────────────────
 lambda1_i, lambda1_f = 0.001, 0.001
-lambda2_i, lambda2_f = 0.4,   0.9
+lambda2_i, lambda2_f = 0.4,   1.1
 direction = "v"
 
 lam1_min, lam1_max = min(lambda1_i, lambda1_f), max(lambda1_i, lambda1_f)
 lam2_min, lam2_max = min(lambda2_i, lambda2_f), max(lambda2_i, lambda2_f)
 
 # ── Observable construction parameters ───────────────────────────────────────
-idxi  = 6
-idxf  = 20
-theta = -np.pi / 2
+idxi  = 15
+idxf  = -1
+theta = -np.pi/2
 
 # ── FSS fit model ─────────────────────────────────────────────────────────────
 # max_h { d<M>/dh } = a'' * L^(1/nu) * (1 + b'' * L^(-theta_exp/nu))
@@ -69,6 +69,8 @@ def fss_model(L, a_pp, nu, b_pp, theta_exp):
 colors       = create_sequential_colors(len(Ls))
 peak_vals    = []   # max susceptibility for each L
 peak_lambdas = []   # lambda at peak for each L
+mag_vals     = []
+peak_idxs    = []
 
 fig_op,  ax_op  = plt.subplots(figsize=(7, 4))
 fig_sus, ax_sus = plt.subplots(figsize=(7, 4))
@@ -76,7 +78,7 @@ fig_sus, ax_sus = plt.subplots(figsize=(7, 4))
 for color, l in zip(colors, Ls):
 
     sites = [l // 2 - 1, l // 2]
-    sites = [l // 2]
+    # sites = [l // 2]
 
     base_filename = (
         f"{model_name}_L_{l}"
@@ -115,6 +117,12 @@ for color, l in zip(colors, Ls):
     )
     print(f"rdms shape: {rdms.shape}")
 
+    # rdms_red = rdms[:,idxi:idxf,:,:]
+    # grad_g = phases_vfield(rdms_red, scale=1, grad=True,
+    #                             fidelity=None, log_g=False)
+
+    # plt.plot(grad_g)
+    # plt.show()
     # ── Build observable M ───────────────────────────────────────────────────
     obs_eval, obs_ev, obs, rdms_flat = constructing_order_parameter(
         rdms, idxi=idxi, idxf=idxf, theta=theta
@@ -140,9 +148,12 @@ for color, l in zip(colors, Ls):
 
 
     # ── Order parameter vec <M>(λ) ──────────────────────────────────────────────
-    obs_vec = make_obs_vec(obs_ev=obs_ev, obs_eval=obs_eval, obs_ev_idx=0)
+    obs_vec = make_obs_vec(obs_ev=obs_ev, obs_eval=obs_eval, obs_ev_idx=3)
+    sorted_components, sorted_coeffs = decompose_obs(obs=obs_vec, k_sites=len(sites))
+    print(f"sorted pauli components of the vector observable: ", sorted_components, sorted_coeffs)
     order_param = np.array([np.trace(rdm @ obs_vec).real for rdm in rdms_flat])
 
+    mag_vals.append(order_param)
     # ── Susceptibility vec χ(λ) = d<M>/dλ  (centered finite difference) ─────────
     susceptibility  = (order_param[2:] - order_param[:-2]) / (2.0 * d_lambda)
     susceptibility  = np.abs(susceptibility)
@@ -150,18 +161,21 @@ for color, l in zip(colors, Ls):
 
     # ── Locate peak with sub-grid precision (parabolic interpolation) ─────────
     i_peak = np.argmax(susceptibility)
-    if 1 <= i_peak <= len(susceptibility) - 2:
-        coeffs     = np.polyfit(lambdas_inner[i_peak-1:i_peak+2],
-                                susceptibility[i_peak-1:i_peak+2], 2)
-        lambda_c_L = -coeffs[1] / (2.0 * coeffs[0])
-        chi_peak   = np.polyval(coeffs, lambda_c_L)
-    else:
-        lambda_c_L = lambdas_inner[i_peak]
-        chi_peak   = susceptibility[i_peak]
+    # if 1 <= i_peak <= len(susceptibility) - 2:
+    #     coeffs     = np.polyfit(lambdas_inner[i_peak-1:i_peak+2],
+    #                             susceptibility[i_peak-1:i_peak+2], 2)
+    #     lambda_c_L = -coeffs[1] / (2.0 * coeffs[0])
+    #     chi_peak   = np.polyval(coeffs, lambda_c_L)
+    # else:
+    #     lambda_c_L = lambdas_inner[i_peak]
+    #     chi_peak   = susceptibility[i_peak]
 
+    lambda_c_L = lambdas_inner[i_peak]
+    chi_peak   = susceptibility[i_peak]
     print(f"L={l}  lambda_c(L)={lambda_c_L:.5f}  chi_peak={chi_peak:.5f}")
     peak_vals.append(chi_peak)
     peak_lambdas.append(lambda_c_L)
+    peak_idxs.append(i_peak)
 
     # ── Plots per L ───────────────────────────────────────────────────────────
     ax_op.plot(lambdas_window, order_param,
@@ -256,17 +270,19 @@ print("Saved susceptibility figure.")
 # Ls_inv = [1/L for L in Ls]
 
 # Power fit function
-def pow_law(L,a,b,c):
-    return a + b*(L**c)
+def pow_law(x,a,b,c):
+    return a + b*(x**c)
 
-# Error on x
-x_err = (lambda2_f - lambda2_i) / n2_sub
-crit_vals_err = np.array([x_err] * len(Ls))
+###### G CRIT AND NU EXTRAPOLATION ######
+# Error on y
+y_err = (lambda2_f - lambda2_i) / n2_sub
+crit_vals_err = np.array([y_err] * len(Ls))
 
 # Perform the linear fit
-xdata = Ls
+# xdata = Ls
+xdata = [1/L for L in Ls]
 ydata = peak_lambdas
-p_opt, co_opt = curve_fit(pow_law, xdata, ydata, sigma=crit_vals_err, absolute_sigma=True, maxfev=2000) #, bounds=([0,-np.inf,0],[10,np.inf,10]))
+p_opt, co_opt = curve_fit(pow_law, xdata, ydata, sigma=crit_vals_err) # , sigma=crit_vals_err, absolute_sigma=True, maxfev=2000, bounds=([-10,-np.inf,-10],[10,np.inf,10]))
 
 # Extract the optimal parameters
 a_opt, b_opt, c_opt = p_opt
@@ -276,12 +292,57 @@ perr = np.sqrt(np.diag(co_opt))
 a_err, b_err, c_err = perr
 
 # Print the results
-print(f"Optimal parameters: crit g = {a_opt:.4f} ± {a_err:.4f}, amplitude = {b_opt:.4f} ± {b_err:.4f}, nu = {-1/c_opt:.4f} ± {1/c_err:.4f}")
+print(f"Optimal parameters: crit g = {a_opt:.4f} ± {a_err:.4f}, amplitude = {b_opt:.4f} ± {b_err:.4f}, nu = {1/c_opt:.4f} ± {(c_err / c_opt**2):.4f}")
 
 # Theoretical and fitted critical points
 h_th = 1
-h_c = pow_law(L=1e-6, a=p_opt[0], b=p_opt[1], c=-p_opt[2])
+h_c = pow_law(x=1e-6, a=p_opt[0], b=p_opt[1], c=p_opt[2])
 print(f"exp value of g_critical: {h_c}")
+
+###### BETA EXTRAPOLATION ######
+from scipy.interpolate import UnivariateSpline
+# M_at_crit = []
+# for order_param in mag_vals:
+#     # interpolate <M>(lambda) for this L
+#     spl = UnivariateSpline(lambdas_window, order_param, s=0, k=3)
+#     M_at_crit.append(spl(a_opt).item())  # evaluate at lambda_c(inf)
+
+M_at_crit = []
+for order_param, x_peak in zip(mag_vals, peak_idxs):
+    M_at_crit.append(order_param[x_peak])
+
+
+xdata = [1/L for L in Ls]
+ydata = np.array(M_at_crit)
+
+p_opt, co_opt = curve_fit(pow_law, xdata, ydata, maxfev=2000, bounds=([-np.inf,-np.inf,0],[np.inf,np.inf,1]))
+
+# Extract the optimal parameters
+a_opt, b_opt, c_opt = p_opt
+
+# Extract the standard errors of the parameters
+perr = np.sqrt(np.diag(co_opt))
+a_err, b_err, c_err = perr
+
+# Print the results
+print(f"Optimal parameters: const = {a_opt:.4f} ± {a_err:.4f}, amplitude = {b_opt:.4f} ± {b_err:.4f}, beta/nu = {c_opt:.4f} ± {c_err:.4f}")
+
+###### GAMMA EXTRAPOLATION ######
+xdata = peak_lambdas - a_opt
+xdata = [1/x for x in xdata]
+ydata = peak_vals
+
+p_opt, co_opt = curve_fit(pow_law, xdata, ydata) # , sigma=crit_vals_err, absolute_sigma=True, maxfev=2000, bounds=([-10,-np.inf,-10],[10,np.inf,10]))
+
+# Extract the optimal parameters
+a_opt, b_opt, c_opt = p_opt
+
+# Extract the standard errors of the parameters
+perr = np.sqrt(np.diag(co_opt))
+a_err, b_err, c_err = perr
+
+# Print the results
+print(f"Optimal parameters: const = {a_opt:.4f} ± {a_err:.4f}, amplitude = {b_opt:.4f} ± {b_err:.4f}, gamma = {c_opt:.4f} ± {c_err:.4f}")
 
 # def plotting(p_opt, perr, xdata, ydata, crit_vals_err, colors):
 #     # Data for the fit line and error bounds

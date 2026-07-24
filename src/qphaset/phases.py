@@ -170,8 +170,10 @@ def decompose_obs(obs, k_sites=2):
     operators = SparsePauliOp.from_operator(obs)
     sorted_indices = np.argsort(operators.coeffs)[::-1]
     components = operators.paulis
+    coeffs = operators.coeffs
     sorted_components = [components[i] for i in sorted_indices]
-    return sorted_components[:2**(k_sites)]
+    sorted_coeffs = [coeffs[i] for i in sorted_indices]
+    return sorted_components[:2**(k_sites)], sorted_coeffs[:2**(k_sites)]
 
 def sanitize_state(state):
     # ensure flat list of arrays
@@ -288,25 +290,26 @@ def constructing_order_parameter(rdms, *, idxi=0, idxf=-1, theta=0.0, fidelity=N
 
     # rhoa = np.average(rdms_flat[idx_a], axis=0)
     # rhob = np.average(rdms_flat[idx_b], axis=0)
-    # rhoa = rdms_flat[idx_a][0]
-    # rhob = rdms_flat[idx_b][-1]
 
-    # rhoa /= np.linalg.norm(rhoa) # , ord='fro')
-    # rhob /= np.linalg.norm(rhob) # , ord='fro')
+    rhoa = rdms_flat[idx_a][0]
+    rhob = rdms_flat[idx_b][-1]
+
+    rhoa /= np.linalg.norm(rhoa) # , ord='fro')
+    rhob /= np.linalg.norm(rhob) # , ord='fro')
     
-    # normalize all candidates
-    rhos_a = rdms_flat[idx_a]
-    rhos_b = rdms_flat[idx_b]
-    rhos_a /= np.linalg.norm(rhos_a, axis=(1,2), keepdims=True)
-    rhos_b /= np.linalg.norm(rhos_b, axis=(1,2), keepdims=True)
+    # # normalize all candidates
+    # rhos_a = rdms_flat[idx_a]
+    # rhos_b = rdms_flat[idx_b]
+    # rhos_a /= np.linalg.norm(rhos_a, axis=(1,2), keepdims=True)
+    # rhos_b /= np.linalg.norm(rhos_b, axis=(1,2), keepdims=True)
 
-    # compute all pairwise dot products at once: shape (len_a, len_b)
-    dots = np.einsum('aij,bji->ab', rhos_a, rhos_b).real
+    # # compute all pairwise dot products at once: shape (len_a, len_b)
+    # dots = np.einsum('aij,bji->ab', rhos_a, rhos_b).real
 
-    # find the minimizing pair
-    best_i, best_j = np.unravel_index(np.argmin(dots), dots.shape)
-    rhoa = rhos_a[best_i]
-    rhob = rhos_b[best_j]
+    # # find the minimizing pair
+    # best_i, best_j = np.unravel_index(np.argmin(dots), dots.shape)
+    # rhoa = rhos_a[best_i]
+    # rhob = rhos_b[best_j]
 
     dot_ab = np.trace(rhoa @ rhob)
     obs    = rhoa - dot_ab * rhob

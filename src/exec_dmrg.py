@@ -14,7 +14,7 @@ from qupytex_io import save_gstates
 # ── Model config ──────────────────────────────────────────────────────────────
 
 model_name = "ANNNI"
-l = 20
+l =60
 d = 2 # physical local dimension
 
 a = 0.005
@@ -23,7 +23,7 @@ k_study = 0.001
 lam1_i, lam1_f = k_study - 2*a, k_study + 2*a 
 lam1_i, lam1_f = k_study - a, k_study + a 
 params = np.linspace(lam1_i, lam1_f,round((lam1_f - lam1_i) / a) + 1), np.linspace(0.1,1.1,21) # upside-down
-params = np.linspace(k_study, k_study, 1), np.linspace(0.4,0.9,31) # upside-down
+params = np.linspace(k_study, k_study, 1), np.linspace(0.4,1.1,71) # upside-down
 n1 = len(params[0])
 n2 = len(params[1])
 # params = np.linspace(0.001, 0.001, n1), np.linspace(0.1, 1.2, n2) # upside-down

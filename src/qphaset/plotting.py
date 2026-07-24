@@ -86,7 +86,7 @@ def plot_observable(obs, rdms, sites=None,  figure_name=None, lattice_shape=None
         title_str = f"Eigvec: {component}"
     ax[0].set_title(title_str)
 
-    sorted_components = decompose_obs(obs, len(sites))
+    sorted_components, _ = decompose_obs(obs, len(sites))
     # ax1 = ax[1].matshow(obs.real, aspect='auto')
     ax1 = ax[1].matshow(np.abs(obs), aspect='auto', vmin=0, vmax=1)
     fig.colorbar(ax1, ax=ax[1])
