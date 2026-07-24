@@ -14,7 +14,7 @@ from qupytex_io import save_gstates
 # ── Model config ──────────────────────────────────────────────────────────────
 
 model_name = "ANNNI"
-l = 22
+l = 24
 d = 2 # physical local dimension
 
 a = 0.005
