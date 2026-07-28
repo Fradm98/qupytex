@@ -17,9 +17,9 @@ sigma_z = np.array([[1, 0], [0, -1]])
 
 # ── Model config ──────────────────────────────────────────────────────────────
 model_name = "ANNNI"
-Ls   = [50, 70]         # system sizes for FSS
+Ls   = [50, 70, 90, 110, 130, 150]         # system sizes for FSS
 n1   = 1
-n2   = 201
+n2   = 401
 chi  = 50
 c1   = 1e-4
 
@@ -29,7 +29,7 @@ lambda2_range = None
 
 # ── Device ────────────────────────────────────────────────────────────────────
 device = 'pc'
-# device = 'ngt'
+device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/work"
@@ -54,14 +54,14 @@ else:
 
 # ── Scan parameters ───────────────────────────────────────────────────────────
 lambda1_i, lambda1_f = 0.001, 0.001
-lambda2_i, lambda2_f = 0.9,   1.1
+lambda2_i, lambda2_f = 0.8,   1.2
 direction = "v"
 
 lam1_min, lam1_max = min(lambda1_i, lambda1_f), max(lambda1_i, lambda1_f)
 lam2_min, lam2_max = min(lambda2_i, lambda2_f), max(lambda2_i, lambda2_f)
 
 # ── Observable construction parameters ───────────────────────────────────────
-idxi  = 50
+idxi  = 10
 idxf  = -1
 theta = -np.pi/2
 
@@ -74,6 +74,7 @@ def fss_model(L, a_pp, nu, b_pp, theta_exp):
 colors       = create_sequential_colors(len(Ls))
 peak_vals    = []   # max susceptibility for each L
 peak_lambdas = []   # lambda at peak for each L
+lam_vals     = []   # lambda values for each L
 mag_vals     = []
 peak_idxs    = []
 
@@ -147,15 +148,6 @@ for color, l in zip(colors, Ls):
     # (e.g. it drops boundary points); align from the left
     lambdas_window = lambdas_window[:n_flat]
 
-    # # ── Order parameter  <M>(λ) ──────────────────────────────────────────────
-    #order_param = np.array([np.trace(rdm @ obs).real for rdm in rdms_flat])
-
-    # # ── Susceptibility  χ(λ) = d<M>/dλ  (centered finite difference) ─────────
-    # susceptibility  = (order_param[2:] - order_param[:-2]) / (2.0 * d_lambda)
-    # susceptibility  = np.abs(susceptibility)
-    # lambdas_inner   = lambdas_window[1:-1]
-
-
     # # ── Order parameter vec <M>(λ) ──────────────────────────────────────────────
     # obs_vec = make_obs_vec(obs_ev=obs_ev, obs_eval=obs_eval, obs_ev_idx=0)
     # sorted_components, sorted_coeffs = decompose_obs(obs=obs_vec, k_sites=len(sites))
@@ -188,6 +180,7 @@ for color, l in zip(colors, Ls):
     print(f"L={l}  lambda_c(L)={lambda_c_L:.5f}  chi_peak={chi_peak:.5f}")
     peak_vals.append(chi_peak)
     peak_lambdas.append(lambda_c_L)
+    lam_vals.append(lambdas_window)
     peak_idxs.append(i_peak)
 
     # ── Plots per L ───────────────────────────────────────────────────────────
@@ -216,75 +209,6 @@ fig_sus.savefig(f"{path_to_figures}/{model_name}_susceptibility_fss.png", dpi=30
 print("Saved susceptibility figure.")
 
 plt.close()
-plt.close()
-
-
-# # ── FSS fit: chi_peak ~ a'' L^(1/nu) (1 + b'' L^(-theta/nu)) ────────────────
-# Ls_arr    = np.array(Ls, dtype=float)
-# peaks_arr = np.array(peak_vals, dtype=float)
-
-# if len(Ls) >= 4:
-#     # Ising 2D priors: nu=1, theta~2
-#     p0 = [peaks_arr[0] / Ls_arr[0], 1.0, 0.1, 2.0]
-#     try:
-#         popt, pcov = curve_fit(fss_model, Ls_arr, peaks_arr, p0=p0,
-#                                maxfev=10_000)
-#         perr = np.sqrt(np.diag(pcov))
-#         a_pp, nu_fit, b_pp, theta_fit = popt
-#         print("\n── FSS fit results ──────────────────────────────")
-#         print(f"  a''    = {a_pp:.4f}  ±  {perr[0]:.4f}")
-#         print(f"  nu     = {nu_fit:.4f}  ±  {perr[1]:.4f}   (Ising 2D: 1.0)")
-#         print(f"  b''    = {b_pp:.4f}  ±  {perr[2]:.4f}")
-#         print(f"  theta  = {theta_fit:.4f}  ±  {perr[3]:.4f}")
-
-#         # ── FSS plot: chi_peak vs L ───────────────────────────────────────────
-#         fig_fss, ax_fss = plt.subplots(figsize=(5, 4))
-#         L_fine = np.linspace(Ls_arr[0] * 0.9, Ls_arr[-1] * 1.1, 200)
-#         ax_fss.plot(Ls_arr, peaks_arr, 'o', color='steelblue',
-#                     ms=7, label="data")
-#         ax_fss.plot(L_fine, fss_model(L_fine, *popt), '-', color='tomato',
-#                     label=(rf"fit: $\nu={nu_fit:.3f}\pm{perr[1]:.3f}$,"
-#                            rf" $\theta={theta_fit:.3f}\pm{perr[3]:.3f}$"))
-#         ax_fss.set_xlabel("$L$", fontsize=13)
-#         ax_fss.set_ylabel(r"$\max_\lambda\,\chi(L)$", fontsize=13)
-#         ax_fss.set_title(f"{model_name} — FSS of peak susceptibility", fontsize=12)
-#         ax_fss.legend(fontsize=9)
-#         fig_fss.tight_layout()
-#         fig_fss.savefig(f"{path_to_figures}/{model_name}_fss_fit.png", dpi=300)
-#         print("Saved FSS fit figure.")
-
-#         # ── lambda_c extrapolation plot ───────────────────────────────────────
-#         # lambda_c(L) - lambda_c(inf) ~ L^{-1/nu}  =>  plot vs L^{-1/nu_fit}
-#         lc_arr = np.array(peak_lambdas)
-#         x_fss  = Ls_arr ** (-1.0 / nu_fit)
-#         coeffs_lc = np.polyfit(x_fss, lc_arr, 1)
-#         lambda_c_inf = coeffs_lc[1]
-#         print(f"\n  lambda_c(inf) ~ {lambda_c_inf:.5f}  (linear extrap. in L^{{-1/nu}})")
-
-#         fig_lc, ax_lc = plt.subplots(figsize=(5, 4))
-#         ax_lc.plot(x_fss, lc_arr, 'o', color='steelblue', ms=7, label="data")
-#         x_fit = np.linspace(0, x_fss.max() * 1.05, 100)
-#         ax_lc.plot(x_fit, np.polyval(coeffs_lc, x_fit), '--', color='tomato',
-#                    label=rf"extrap. $\lambda_c(\infty)={lambda_c_inf:.4f}$")
-#         ax_lc.set_xlabel(rf"$L^{{-1/\nu}}$  ($\nu={nu_fit:.3f}$)", fontsize=13)
-#         ax_lc.set_ylabel(r"$\lambda_c(L)$", fontsize=13)
-#         ax_lc.set_title(f"{model_name} — critical point extrapolation", fontsize=12)
-#         ax_lc.legend(fontsize=9)
-#         fig_lc.tight_layout()
-#         fig_lc.savefig(f"{path_to_figures}/{model_name}_lambda_c_extrap.png", dpi=300)
-#         print("Saved lambda_c extrapolation figure.")
-
-#     except RuntimeError as e:
-#         print(f"FSS fit did not converge: {e}")
-#         print("  Try providing better initial guesses in p0.")
-# else:
-#     print(f"\nOnly {len(Ls)} system sizes — need at least 4 for a reliable FSS fit.")
-#     print("Peak susceptibilities:", dict(zip([int(l) for l in Ls_arr], peaks_arr.tolist())))
-
-# plt.show()
-
-# # Your given data
-# Ls_inv = [1/L for L in Ls]
 
 # Power fit function
 def pow_law(x,a,b,c):
@@ -296,7 +220,6 @@ y_err = (lambda2_f - lambda2_i) / n2_sub
 crit_vals_err = np.array([y_err] * len(Ls))
 
 # Perform the linear fit
-# xdata = Ls
 xdata = [1/L for L in Ls]
 ydata = peak_lambdas
 p_opt, co_opt = curve_fit(pow_law, xdata, ydata, sigma=crit_vals_err) # , sigma=crit_vals_err, absolute_sigma=True, maxfev=2000, bounds=([-10,-np.inf,-10],[10,np.inf,10]))
@@ -311,129 +234,49 @@ a_err, b_err, c_err = perr
 # Print the results
 print(f"Optimal parameters: crit g = {a_opt:.4f} ± {a_err:.4f}, amplitude = {b_opt:.4f} ± {b_err:.4f}, nu = {1/c_opt:.4f} ± {(c_err / c_opt**2):.4f}")
 
-# Theoretical and fitted critical points
-h_th = 1
-h_c = pow_law(x=1e-6, a=p_opt[0], b=p_opt[1], c=p_opt[2])
-print(f"exp value of g_critical: {h_c}")
-
-
-pppp, ccc = curve_fit(pow_law, Ls, peak_vals)
-x_fit = np.linspace(Ls[0], Ls[-1], 50)
-y_fit = pow_law(x_fit, *pppp)
-
-# print("exponent: ", pppp[2], np.sqrt(np.diag(ccc))[2])
-# fig, ax = plt.subplots(1,2)
-# ax[0].scatter(Ls, peak_vals, s=10, marker='+')
-# ax[0].plot(x_fit, y_fit, '--', color='red')
-
-# ax[1].scatter(Ls, np.asarray(peak_vals)/np.asarray(Ls), s=10, marker='+')
-# ax[1].plot(x_fit, y_fit/x_fit, '--', color='red')
-# plt.show()
-
+xfit = np.linspace(0, 1.0/max(Ls), 100)
+yfit = pow_law(xfit, a_opt, b_opt, c_opt)
 fig, ax = plt.subplots(1,2)
-ax[0].scatter(Ls, peak_vals/pppp[0], s=10, marker='+')
-ax[0].plot(x_fit, y_fit/pppp[0], '--', color='red')
+ax[0].scatter(xdata, peak_lambdas, s=10, marker='+')
+ax[0].plot(xfit, yfit, '--', color='red')
+ax[0].scatter([0], [pow_law(0, a_opt, b_opt, c_opt)], marker='x', color='red', s=70)
+ax[0].text(0.05, 0.95, f"$g_c^{{\infty}} = {pow_law(0, a_opt, b_opt, c_opt):.4f} \pm {a_err:.4f}$")
 
-ax[1].scatter(Ls, np.asarray(peak_vals)/np.asarray(Ls), s=10, marker='+')
-ax[1].plot(x_fit, y_fit/x_fit, '--', color='red')
-plt.show()
 
 ###### BETA EXTRAPOLATION ######
-from scipy.interpolate import UnivariateSpline
-# M_at_crit = []
-# for order_param in mag_vals:
-#     # interpolate <M>(lambda) for this L
-#     spl = UnivariateSpline(lambdas_window, order_param, s=0, k=3)
-#     M_at_crit.append(spl(a_opt).item())  # evaluate at lambda_c(inf)
+from scipy.interpolate import interp1d
 
-M_at_crit = []
-for order_param, x_peak in zip(mag_vals, peak_idxs):
-    M_at_crit.append(order_param[x_peak])
+print("M at lambda_c(L) for each L:")
+m_crit = []
+for L, lam, M, lc in zip(Ls, lam_vals, mag_vals, peak_lambdas):
+    M_interp = float(interp1d(lam, M, kind='cubic')(lc))
+    m_crit.append(M_interp)
+    print(f"  L={L}: lambda_c={lc:.4f}, M={M_interp:.6f}")
 
 
-xdata = [1/L for L in Ls]
-ydata = np.array(M_at_crit)
+def power_law(logL, log_A, bnu):
+    return log_A - bnu * logL
 
-p_opt, co_opt = curve_fit(pow_law, xdata, ydata, maxfev=2000, bounds=([-np.inf,-np.inf,0],[np.inf,np.inf,1]))
+# Perform the linear fit
+xdata = np.log(Ls)
+ydata = np.log(m_crit)
+p_opt, co_opt = curve_fit(power_law, xdata, ydata) # , sigma=crit_vals_err, absolute_sigma=True, maxfev=2000, bounds=([-10,-np.inf,-10],[10,np.inf,10]))
 
 # Extract the optimal parameters
-a_opt, b_opt, c_opt = p_opt
+a_opt, bnu_opt = p_opt
 
 # Extract the standard errors of the parameters
 perr = np.sqrt(np.diag(co_opt))
-a_err, b_err, c_err = perr
+a_err, bnu_err = perr
 
 # Print the results
-print(f"Optimal parameters: const = {a_opt:.4f} ± {a_err:.4f}, amplitude = {b_opt:.4f} ± {b_err:.4f}, beta/nu = {c_opt:.4f} ± {c_err:.4f}")
+print(f"Optimal parameters: constant = {a_opt:.4f} ± {a_err:.4f}, beta/nu = {bnu_opt:.4f} ± {bnu_err:.4f}")
 
-###### GAMMA EXTRAPOLATION ######
-xdata = peak_lambdas - a_opt
-xdata = [1/x for x in xdata]
-ydata = peak_vals
-
-p_opt, co_opt = curve_fit(pow_law, xdata, ydata) # , sigma=crit_vals_err, absolute_sigma=True, maxfev=2000, bounds=([-10,-np.inf,-10],[10,np.inf,10]))
-
-# Extract the optimal parameters
-a_opt, b_opt, c_opt = p_opt
-
-# Extract the standard errors of the parameters
-perr = np.sqrt(np.diag(co_opt))
-a_err, b_err, c_err = perr
-
-# Print the results
-print(f"Optimal parameters: const = {a_opt:.4f} ± {a_err:.4f}, amplitude = {b_opt:.4f} ± {b_err:.4f}, gamma = {c_opt:.4f} ± {c_err:.4f}")
-
-# def plotting(p_opt, perr, xdata, ydata, crit_vals_err, colors):
-#     # Data for the fit line and error bounds
-#     xs = np.linspace(0, 0.3)
-#     y_fit = pow_law(xs, p_opt[0], p_opt[1], -p_opt[2])
-#     # error over nu
-#     nu_err = (1/(p_opt[2]-perr[2]) - 1/(p_opt[2]+perr[2]))/2
-#     y_err_plus = pow_law(xs, p_opt[0] + perr[0], p_opt[1] + perr[1], -p_opt[2] + nu_err)
-#     y_err_minus = pow_law(xs, p_opt[0] - perr[0], p_opt[1] - perr[1], -p_opt[2] - nu_err)
-
-#     # Plotting
-#     fig, ax = plt.subplots()
-#     ax.plot(xs, y_fit, color="k", linewidth=1, linestyle='--', label='Fit: $aL^{-1/\\nu} + b$', zorder=1)
-#     # ax.plot(xs, y_fit, color=colors[0], linewidth=1, label='Fit: $aL^{-1/\\nu} + b$')
-#     # ax.fill_between(xs, y_err_minus, y_err_plus, color=colors[1], alpha=0.5, label="Fit Uncertainty")
-#     ax.errorbar(xdata, ydata, yerr=crit_vals_err, fmt='o', elinewidth=1, capsize=8, markersize=8, mfc="white", mec="red", ecolor="red", label="Data", zorder=2)
-
-#     ax.scatter([0], [h_th], marker='x', color=colors[3], s=70, label="$g_c^{th}$",zorder=4)
-#     ax.errorbar([0], [h_c], yerr=perr[0], fmt='o', elinewidth=1, capsize=8, markersize=8, mfc="white", color=colors[4], label="$g_c^{fit}$", zorder=3)
-#     ax.set_xlabel("$1/L$", fontsize=14)
-#     ax.set_ylabel("electric coupling $(g)$", fontsize=14)
-#     # ax.grid(True, alpha=0.5)
-#     ax.legend(loc='upper right', fontsize=14)
-#     ax.set_ylim((0.42,0.64))
-    
-#     # Inset plot
-#     inset_ax = inset_axes(ax, width="42%", height="45%", loc="lower left", bbox_to_anchor=(0.1, 0.09, 0.95, 0.9), bbox_transform=ax.transAxes)
-#     colors = ['#99d98c', '#52b69a', '#168aad', '#1e6091', '#d9ed92']
-#     colors = ["#4688CE","#9B4DB7","#DC4563"]
-#     colors = ["#FC4778","#BB4BA2","#7A4ECB","#3952F5"]
-#     colors = ["#DC4563","#AD5A85","#90679A", "#4688CE"]
-
-
-#     i = 0
-#     Ls = [4,5,6,7]
-#     for L, chi, lx, ly in zip(Ls, chis, lxs, lys):
-#         l = L
-#         string = np.load(f"{parent_path}/results/thooft/thooft_string_first_moment_{lx}-{ly}_horizontal_Z2_dual_direct_lattice_{l}x{L}_{sector}_bc_{boundcond}_{cx}-{cy}_h_{lambda2_i}-{lambda2_f}_delta_{n2_sub}_chi_{chi}.npy")
-#         d_string_dh = np.gradient(string, interval)
-#         g_max = round(interval[np.argmax(d_string_dh)], 4)
-#         inset_ax.plot(interval, d_string_dh, color=colors[i], label=f"${l}$x${L}$", zorder=1)
-#         inset_ax.scatter(g_max, np.max(d_string_dh), marker='o', facecolors="white", edgecolors="red", zorder=2)
-#         i += 1
-
-#     # inset_ax.grid(True, alpha=0.5)
-#     inset_ax.legend(fontsize=10, loc='upper right')
-#     inset_ax.set_xlabel("electric coupling $(g)$",fontsize=14)
-#     inset_ax.set_ylabel("$d\langle M \\rangle / dg$", fontsize=14)
-#     inset_ax.tick_params(axis='both', which='major', labelsize=8)
-#     inset_ax.tick_params(axis='both', which='minor', labelsize=8)
-
-#     # Save the plot
-#     plt.savefig(f"{parent_path}/figures/magnetization/critical_point_Z2_dual_L_{Ls}_{sector}_bc_{boundcond}_None-None_h_{lambda2_i}-{lambda2_f}_delta_{n2_sub}_facecolor_white.png")
-
-#     plt.show()
+xfit = np.linspace(0, np.log(max(Ls)), 100)
+yfit = power_law(xfit, a_opt, bnu_opt)
+ax[1].scatter(np.log(Ls), np.log(m_crit), s=10, marker='+')
+ax[1].plot(xfit, yfit, '--', color='red')
+ax[1].text(0.05, 0.95, f"$\beta/\nu = {bnu_opt:.4f} \pm {bnu_err:.4f}$")
+plt.show()
+plt.savefig(f"{path_to_figures}/{model_name}_fss_critical_extrapolation.png", dpi=300)
+plt.savefig(f"{path_to_figures}/fig08.pdf", dpi=300)
