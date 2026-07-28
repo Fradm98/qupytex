@@ -288,14 +288,20 @@ def constructing_order_parameter(rdms, *, idxi=0, idxf=-1, theta=0.0, fidelity=N
               f"Try adjusting theta.")
         return None, None, None, None
 
+
+    sigma_x = np.array([[0, 1], [1, 0]])
+    sigma_z = np.array([[1, 0], [0, -1]])
+    rhoa = (np.eye(2) + sigma_x)/2
+    rhob = (np.eye(2) + sigma_z)/2
+
     # rhoa = np.average(rdms_flat[idx_a], axis=0)
     # rhob = np.average(rdms_flat[idx_b], axis=0)
 
-    rhoa = rdms_flat[idx_a][0]
-    rhob = rdms_flat[idx_b][-1]
+    # rhoa = rdms_flat[idx_a][0]
+    # rhob = rdms_flat[idx_b][-1]
 
-    rhoa /= np.linalg.norm(rhoa) # , ord='fro')
-    rhob /= np.linalg.norm(rhob) # , ord='fro')
+    # rhoa /= np.linalg.norm(rhoa) # , ord='fro')
+    # rhob /= np.linalg.norm(rhob) # , ord='fro')
     
     # # normalize all candidates
     # rhos_a = rdms_flat[idx_a]

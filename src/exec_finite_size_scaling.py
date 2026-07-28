@@ -10,13 +10,18 @@ from qphaset.phases import (gstates_to_rdms_matrix_qs_mps, constructing_order_pa
 
 from qupytex_io import load_gstates, describe_manifest
 
+# -- Pauli matrices ---
+sigma_x = np.array([[0, 1], [1, 0]])
+sigma_y = np.array([[0, -1j], [1j, 0]])
+sigma_z = np.array([[1, 0], [0, -1]])
+
 # ── Model config ──────────────────────────────────────────────────────────────
 model_name = "ANNNI"
-Ls   = [30, 40, 50, 60]         # system sizes for FSS
+Ls   = [50, 70]         # system sizes for FSS
 n1   = 1
-n2   = 71
+n2   = 201
 chi  = 50
-c1   = 1e-5
+c1   = 1e-4
 
 # ── Optional: restrict to a sub-region ───────────────────────────────────────
 lambda1_range = None
@@ -49,14 +54,14 @@ else:
 
 # ── Scan parameters ───────────────────────────────────────────────────────────
 lambda1_i, lambda1_f = 0.001, 0.001
-lambda2_i, lambda2_f = 0.4,   1.1
+lambda2_i, lambda2_f = 0.9,   1.1
 direction = "v"
 
 lam1_min, lam1_max = min(lambda1_i, lambda1_f), max(lambda1_i, lambda1_f)
 lam2_min, lam2_max = min(lambda2_i, lambda2_f), max(lambda2_i, lambda2_f)
 
 # ── Observable construction parameters ───────────────────────────────────────
-idxi  = 15
+idxi  = 50
 idxf  = -1
 theta = -np.pi/2
 
@@ -78,7 +83,7 @@ fig_sus, ax_sus = plt.subplots(figsize=(7, 4))
 for color, l in zip(colors, Ls):
 
     sites = [l // 2 - 1, l // 2]
-    # sites = [l // 2]
+    sites = [l // 2]
 
     base_filename = (
         f"{model_name}_L_{l}"
@@ -123,6 +128,10 @@ for color, l in zip(colors, Ls):
 
     # plt.plot(grad_g)
     # plt.show()
+
+    print(rdms[:,idxi,:,:])
+    print(rdms[:,idxf,:,:])
+
     # ── Build observable M ───────────────────────────────────────────────────
     obs_eval, obs_ev, obs, rdms_flat = constructing_order_parameter(
         rdms, idxi=idxi, idxf=idxf, theta=theta
@@ -139,7 +148,7 @@ for color, l in zip(colors, Ls):
     lambdas_window = lambdas_window[:n_flat]
 
     # # ── Order parameter  <M>(λ) ──────────────────────────────────────────────
-    # order_param = np.array([np.trace(rdm @ obs).real for rdm in rdms_flat])
+    #order_param = np.array([np.trace(rdm @ obs).real for rdm in rdms_flat])
 
     # # ── Susceptibility  χ(λ) = d<M>/dλ  (centered finite difference) ─────────
     # susceptibility  = (order_param[2:] - order_param[:-2]) / (2.0 * d_lambda)
@@ -147,11 +156,15 @@ for color, l in zip(colors, Ls):
     # lambdas_inner   = lambdas_window[1:-1]
 
 
-    # ── Order parameter vec <M>(λ) ──────────────────────────────────────────────
-    obs_vec = make_obs_vec(obs_ev=obs_ev, obs_eval=obs_eval, obs_ev_idx=3)
-    sorted_components, sorted_coeffs = decompose_obs(obs=obs_vec, k_sites=len(sites))
-    print(f"sorted pauli components of the vector observable: ", sorted_components, sorted_coeffs)
-    order_param = np.array([np.trace(rdm @ obs_vec).real for rdm in rdms_flat])
+    # # ── Order parameter vec <M>(λ) ──────────────────────────────────────────────
+    # obs_vec = make_obs_vec(obs_ev=obs_ev, obs_eval=obs_eval, obs_ev_idx=0)
+    # sorted_components, sorted_coeffs = decompose_obs(obs=obs_vec, k_sites=len(sites))
+    # print(f"sorted pauli components of the vector observable: ", sorted_components, sorted_coeffs)
+
+    # obs = sigma_x / np.sqrt(3) + (np.eye(2) - sigma_z) / (2 * np.sqrt(3))
+    # obs = sigma_x / np.sqrt(2)
+
+    order_param = np.array([np.trace(rdm @ obs).real for rdm in rdms_flat])
 
     mag_vals.append(order_param)
     # ── Susceptibility vec χ(λ) = d<M>/dλ  (centered finite difference) ─────────
@@ -201,6 +214,10 @@ ax_sus.legend(fontsize=10)
 fig_sus.tight_layout()
 fig_sus.savefig(f"{path_to_figures}/{model_name}_susceptibility_fss.png", dpi=300)
 print("Saved susceptibility figure.")
+
+plt.close()
+plt.close()
+
 
 # # ── FSS fit: chi_peak ~ a'' L^(1/nu) (1 + b'' L^(-theta/nu)) ────────────────
 # Ls_arr    = np.array(Ls, dtype=float)
@@ -298,6 +315,28 @@ print(f"Optimal parameters: crit g = {a_opt:.4f} ± {a_err:.4f}, amplitude = {b_
 h_th = 1
 h_c = pow_law(x=1e-6, a=p_opt[0], b=p_opt[1], c=p_opt[2])
 print(f"exp value of g_critical: {h_c}")
+
+
+pppp, ccc = curve_fit(pow_law, Ls, peak_vals)
+x_fit = np.linspace(Ls[0], Ls[-1], 50)
+y_fit = pow_law(x_fit, *pppp)
+
+# print("exponent: ", pppp[2], np.sqrt(np.diag(ccc))[2])
+# fig, ax = plt.subplots(1,2)
+# ax[0].scatter(Ls, peak_vals, s=10, marker='+')
+# ax[0].plot(x_fit, y_fit, '--', color='red')
+
+# ax[1].scatter(Ls, np.asarray(peak_vals)/np.asarray(Ls), s=10, marker='+')
+# ax[1].plot(x_fit, y_fit/x_fit, '--', color='red')
+# plt.show()
+
+fig, ax = plt.subplots(1,2)
+ax[0].scatter(Ls, peak_vals/pppp[0], s=10, marker='+')
+ax[0].plot(x_fit, y_fit/pppp[0], '--', color='red')
+
+ax[1].scatter(Ls, np.asarray(peak_vals)/np.asarray(Ls), s=10, marker='+')
+ax[1].plot(x_fit, y_fit/x_fit, '--', color='red')
+plt.show()
 
 ###### BETA EXTRAPOLATION ######
 from scipy.interpolate import UnivariateSpline
