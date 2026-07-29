@@ -245,7 +245,9 @@ xfit = np.linspace(0, 1.0/min(Ls), 100)
 yfit = pow_law(xfit, a_opt, b_opt, c_opt)
 fig, ax = plt.subplots(1,2, figsize=(12, 5))
 ax[0].scatter(xdata, peak_lambdas, s=10, marker='+')
+ax[0].errorbar(xdata, peak_lambdas, yerr=crit_vals_err, fmt='none', ecolor='gray', alpha=0.5)
 ax[0].plot(xfit, yfit, '--', color='red')
+ax[0].fill_between(xfit, yfit - pow_law(xfit, a_opt-a_err, b_opt-b_err, c_opt-c_err), yfit + pow_law(xfit, a_opt+a_err, b_opt+b_err, c_opt+c_err), color='red', alpha=0.2)
 ax[0].scatter([0], [pow_law(0, a_opt, b_opt, c_opt)], marker='x', color='red', s=70)
 ax[0].text(0.01, 0.995, f"$g_c^{{\infty}} = {pow_law(0, a_opt, b_opt, c_opt):.4f} \pm {a_err:.4f}$")
 ax[0].text(0.01, 0.985, f"$\nu = {1/c_opt:.4f} \pm {(c_err / c_opt**2):.4f}$")
@@ -267,8 +269,8 @@ def power_law(logL, log_A, bnu):
     return log_A - bnu * logL
 
 # Perform the linear fit
-xdata = np.log(Ls)
-ydata = np.log(m_crit)
+xdata = np.log(Ls[2:])
+ydata = np.log(m_crit[2:])
 p_opt, co_opt = curve_fit(power_law, xdata, ydata) # , sigma=crit_vals_err, absolute_sigma=True, maxfev=2000, bounds=([-10,-np.inf,-10],[10,np.inf,10]))
 
 # Extract the optimal parameters
@@ -281,10 +283,11 @@ a_err, bnu_err = perr
 # Print the results
 print(f"Optimal parameters: constant = {a_opt:.4f} ± {a_err:.4f}, beta/nu = {bnu_opt:.4f} ± {bnu_err:.4f}")
 
-xfit = np.linspace(np.log(min(Ls))-0.1, np.log(max(Ls))+0.1, 100)
+xfit = np.linspace(np.log(min(Ls[2:]))-0.1, np.log(max(Ls[2:]))+0.1, 100)
 yfit = power_law(xfit, a_opt, bnu_opt)
-ax[1].scatter(np.log(Ls), np.log(m_crit), s=10, marker='+')
+ax[1].scatter(np.log(Ls[2:]), np.log(m_crit[2:]), s=10, marker='+')
 ax[1].plot(xfit, yfit, '--', color='red')
+ax[1].fill_between(xfit, yfit - power_law(xfit, a_opt-a_err, bnu_opt-bnu_err), yfit + power_law(xfit, a_opt+a_err, bnu_opt+bnu_err), color='red', alpha=0.2)
 ax[1].text(2, -0.9, f"$\beta/\nu = {bnu_opt:.4f} \pm {bnu_err:.4f}$")
 ax[1].set_xlabel("$\log(L)$", fontsize=13)
 ax[1].set_ylabel(f"$\log(M(h_c^L))$", fontsize=13)
