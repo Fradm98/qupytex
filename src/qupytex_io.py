@@ -217,9 +217,13 @@ def load_gstates(path_to_tensor, base_filename,
     """
     mpath    = _manifest_path(path_to_tensor, base_filename)
     manifest = _gz_load(mpath)
-
-    n1          = manifest["n1"]
-    n2          = manifest["n2"]
+    try:
+        n1          = manifest["n1"]
+        n2          = manifest["n2"]
+    except:
+        n           = manifest["n"]
+        n1          = n
+        n2          = n
     params_grid = manifest["params_grid"]   # (n1, n2, 2)
 
     # ── find which rows/cols fall inside the requested ranges ─────────────
@@ -355,8 +359,13 @@ def describe_manifest(path_to_tensor, base_filename):
     """Print a summary of what's stored in a manifest."""
     mpath    = _manifest_path(path_to_tensor, base_filename)
     manifest = _gz_load(mpath)
-    n1 = manifest["n1"]
-    n2 = manifest["n2"]
+    try:
+        n1          = manifest["n1"]
+        n2          = manifest["n2"]
+    except:
+        n           = manifest["n"]
+        n1          = n
+        n2          = n
     print(f"Model      : {manifest['model_name']}")
     print(f"Grid       : {n1}×{n2}")
     print(f"L, d, chi  : {manifest['l']}, {manifest['d']}, {manifest['chi']}")

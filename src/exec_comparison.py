@@ -34,20 +34,20 @@ c1  = 1e-3
 d   = 2
 
 model_name = "Rydberg"
-l   = 20
-n1  = 30
-n2  = 30
+l   = 30
+n1  = 64
+n2  = 64
 chi = 100
-c1  = 1e-3
+c1  = 0
 d   = 2
 
-model_name = "tjv"
-l   = 20
-n1  = 30
-n2  = 30
-chi = 100
-c1  = 1e-3
-d   = 3
+# model_name = "tjv"
+# l   = 20
+# n1  = 30
+# n2  = 30
+# chi = 100
+# c1  = 1e-3
+# d   = 3
 
 # ── Optional: restrict to a sub-region ───────────────────────────────────────
 lambda1_range = None
@@ -95,13 +95,13 @@ lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
 lambda1_i, lambda1_f      = 1, 3
 lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
 
-# tjv
-lambda1_i, lambda1_f      = 0.1, 5
-lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
+# # tjv
+# lambda1_i, lambda1_f      = 0.1, 5
+# lambda2_i, lambda2_f      = lambda1_f, lambda1_i # reverse the indices
 
-# tjv zoom (which phase is this?)
-lambda1_i, lambda1_f      = 0.01, 2
-lambda2_i, lambda2_f      = 4, 0.01 # reverse the indices
+# # tjv zoom (which phase is this?)
+# lambda1_i, lambda1_f      = 0.01, 2
+# lambda2_i, lambda2_f      = 4, 0.01 # reverse the indices
 
 
 params_tmp    = np.linspace(lambda1_i, lambda1_f, n2), np.linspace(lambda2_i, lambda2_f, n1)
@@ -130,6 +130,7 @@ result = load_gstates(
 params       = result["params"]
 params_grid  = result["params_grid"]
 gstates_grid = result["gstates_grid"]
+
 n1_sub       = result["n1_sub"]
 n2_sub       = result["n2_sub"]
 l            = result["l"]
@@ -145,7 +146,7 @@ params_extent = tuple(params_extent[[0, 2, 1, 3]])
 a = abs(params_grid[0, 0, 0] - params_grid[0, 1, 0]) if n2_sub > 1 else 1.0
 
 # ── Sites ─────────────────────────────────────────────────────────────────────
-sites = [(l // 2) - 1, l // 2, (l // 2) + 1]
+sites = [(l // 2) - 1, l // 2, (l // 2) + 1, (l // 2) + 2]
 
 # ── RDM-based fidelity susceptibility ────────────────────────────────────────
 rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, generalized=True)
@@ -176,14 +177,17 @@ dfss = [discrete_fidelity_susceptibility(fid=row, a=a) for row in fidelity]
 # ── Plot ──────────────────────────────────────────────────────────────────────
 fig, ax = plt.subplots(1, 2, figsize=(10, 4))
 
-im0 = ax[0].matshow(np.asarray(dfss_rdms), origin='lower',
+vmin = min(np.min(dfss_rdms), np.min(dfss))
+vmax = max(np.max(dfss_rdms), np.max(dfss))
+
+im0 = ax[0].matshow(np.asarray(dfss_rdms), vmin=vmin, vmax=vmax, origin='lower',
                     extent=params_extent, aspect='auto')
 ax[0].set_title("reduced fidelity susceptibility")
 ax[0].set_xlabel(axis_name[0])
 ax[0].set_ylabel(axis_name[1])
 fig.colorbar(im0, ax=ax[0])
 
-im1 = ax[1].matshow(np.asarray(dfss), origin='lower',
+im1 = ax[1].matshow(np.asarray(dfss), vmin=vmin, vmax=vmax, origin='lower',
                     extent=params_extent, aspect='auto')
 ax[1].set_title("global fidelity susceptibility")
 ax[1].set_xlabel(axis_name[0])
