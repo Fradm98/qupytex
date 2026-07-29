@@ -10,6 +10,23 @@ from qphaset.phases import (gstates_to_rdms_matrix_qs_mps, constructing_order_pa
 
 from qupytex_io import load_gstates, describe_manifest
 
+import matplotlib as mpl
+
+# --- Tick labels ---
+mpl.rcParams['xtick.labelsize'] = 16
+mpl.rcParams['ytick.labelsize'] = 16
+
+# --- Axis labels (xlabel, ylabel) ---
+mpl.rcParams['axes.labelsize'] = 18
+
+# --- General text (plt.text, annotations) ---
+mpl.rcParams['font.size'] = 18        # base font size; many elements inherit this
+
+# --- Legend ---
+mpl.rcParams['legend.fontsize'] = 14
+mpl.rcParams['legend.title_fontsize'] = 14
+
+
 # -- Pauli matrices ---
 sigma_x = np.array([[0, 1], [1, 0]])
 sigma_y = np.array([[0, -1j], [1j, 0]])
@@ -190,20 +207,20 @@ for color, l in zip(colors, Ls):
     # ax_sus.axvline(lambda_c_L, color=color, ls='--', lw=0.8)
 
 # ── Dress order-parameter plot ────────────────────────────────────────────────
-ax_op.set_xlabel(f"$h$", fontsize=18)
-ax_op.set_ylabel("$\\langle M \\rangle$", fontsize=18)
-ax_op.text(0.74, 0.7, "(a)", fontsize=18)
+ax_op.set_xlabel(f"$h$")
+ax_op.set_ylabel("$\\langle M \\rangle$")
+ax_op.text(0.74, 0.7, "(a)")
 ax_op.legend(fontsize=14)
 ax_op.grid(True, alpha=0.3)
-ax_op.set_xticks([0.8, 0.9, 1.0, 1.1, 1.2], fontsize=16)
+ax_op.set_xticks([0.8, 0.9, 1.0, 1.1, 1.2])
 ax_op.set_yticks(fontsize=16)
 
-ax_sus.set_xlabel(f"$h$", fontsize=18)
-ax_sus.set_ylabel("$\\chi_M = \\frac{\\partial \\langle M \\rangle}{\\partial h}$", fontsize=18)
-ax_sus.text(0.74, 26.5, "(b)", fontsize=18)
+ax_sus.set_xlabel(f"$h$")
+ax_sus.set_ylabel("$\\chi_M = \\frac{\\partial \\langle M \\rangle}{\\partial h}$")
+ax_sus.text(0.74, 26.5, "(b)")
 ax_sus.legend(fontsize=14)
 ax_sus.grid(True, alpha=0.3)
-ax_sus.set_xticks([0.8, 0.9, 1.0, 1.1, 1.2], fontsize=16)
+ax_sus.set_xticks([0.8, 0.9, 1.0, 1.1, 1.2])
 ax_sus.set_yticks(fontsize=16)
 
 fig_07.tight_layout()
@@ -211,9 +228,9 @@ fig_07.savefig(f"{path_to_figures}/fig07.pdf", dpi=300)
 # print("Saved order-parameter figure.")
 
 # # ── Dress susceptibility plot ─────────────────────────────────────────────────
-# ax_sus.set_xlabel(f"$h$ ({axis_name[1]})", fontsize=13)
-# ax_sus.set_ylabel(r"$\\chi = \\partial \\langle M \\rangle / \\partial h$", fontsize=13)
-# ax_sus.text(0.72, 26, "b)", fontsize=12)
+# ax_sus.set_xlabel(f"$h$ ({axis_name[1]})")
+# ax_sus.set_ylabel(r"$\\chi = \\partial \\langle M \\rangle / \\partial h$")
+# ax_sus.text(0.72, 26, "b)")
 # ax_sus.legend(fontsize=10)
 # fig_sus.tight_layout()
 # fig_sus.savefig(f"{path_to_figures}/{model_name}_susceptibility_fss.png", dpi=300)
@@ -255,13 +272,13 @@ ax[0].plot(xfit, yfit, '--', color='red', linewidth=1.5)
 ax[0].scatter([0], [pow_law(0, a_opt, b_opt, c_opt)], marker='x', color='darkred', s=70)
 ax[0].errorbar([0], [pow_law(0, a_opt, b_opt, c_opt)], yerr=[a_err], fmt='none', ecolor='darkred', capsize=7, zorder=-1)
 
-ax[0].text(0.009, 0.995, f"$g_c^{{\\infty}} = {pow_law(0, a_opt, b_opt, c_opt):.4f} \\pm {a_err:.4f}$", fontsize=18)
-ax[0].text(0.009, 0.985, f"$\\nu = {1/c_opt:.4f} \\pm {(c_err / c_opt**2):.4f}$", fontsize=18)
-ax[0].set_xlabel("$1/L$", fontsize=18)
-ax[0].set_ylabel(f"$h_c^L$", fontsize=18)
+ax[0].text(0.009, 0.995, f"$g_c^{{\\infty}} = {pow_law(0, a_opt, b_opt, c_opt):.4f} \\pm {a_err:.4f}$")
+ax[0].text(0.009, 0.985, f"$\\nu = {1/c_opt:.4f} \\pm {(c_err / c_opt**2):.4f}$")
+ax[0].set_xlabel("$1/L$")
+ax[0].set_ylabel(f"$h_c^L$")
 ax[0].grid(True, alpha=0.3)
-ax[0].text(-0.0025, 1.06, "(a)", fontsize=18)
-ax[0].set_xticks([0, 0.005, 0.01, 0.015, 0.02], fontsize=16)
+ax[0].text(-0.0025, 1.06, "(a)")
+ax[0].set_xticks([0, 0.005, 0.01, 0.015, 0.02])
 ###### BETA EXTRAPOLATION ######
 from scipy.interpolate import interp1d
 
@@ -296,11 +313,11 @@ yfit = power_law(xfit, a_opt, bnu_opt)
 ax[1].scatter(np.log(Ls[2:]), np.log(m_crit[2:]), s=40, marker='o', color='k')
 ax[1].plot(xfit, yfit, '--', color='red', linewidth=1.5)
 # ax[1].fill_between(xfit, yfit - power_law(xfit, a_opt-a_err, bnu_opt-bnu_err), yfit + power_law(xfit, a_opt+a_err, bnu_opt+bnu_err), color='red', alpha=0.2)
-ax[1].text(4.7, -0.93, f"$\\beta/\\nu = {bnu_opt:.4f} \\pm {bnu_err:.4f}$", fontsize=18)
-ax[1].set_xlabel("$\\log(L)$", fontsize=18)
-ax[1].set_ylabel(f"$\\log(M(h_c^L))$", fontsize=18)
+ax[1].text(4.7, -0.93, f"$\\beta/\\nu = {bnu_opt:.4f} \\pm {bnu_err:.4f}$")
+ax[1].set_xlabel("$\\log(L)$")
+ax[1].set_ylabel(f"$\\log(M(h_c^L))$")
 ax[1].grid(True, alpha=0.3)
-ax[1].text(4.31, -0.914, "(b)", fontsize=18)
+ax[1].text(4.31, -0.914, "(b)")
 
 fig.tight_layout()
 plt.show()
