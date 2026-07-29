@@ -71,15 +71,14 @@ def fss_model(L, a_pp, nu, b_pp, theta_exp):
     return a_pp * L ** (1.0 / nu) * (1.0 + b_pp * L ** (-theta_exp / nu))
 
 # ── Collect results across system sizes ──────────────────────────────────────
-colors       = create_sequential_colors(len(Ls))
+colors       = create_sequential_colors(len(Ls)+5)
 peak_vals    = []   # max susceptibility for each L
 peak_lambdas = []   # lambda at peak for each L
 lam_vals     = []   # lambda values for each L
 mag_vals     = []
 peak_idxs    = []
 
-fig_op,  ax_op  = plt.subplots(figsize=(7, 4))
-fig_sus, ax_sus = plt.subplots(figsize=(7, 4))
+fig_07,  (ax_op, ax_sus)  = plt.subplots(1, 2, figsize=(9, 4))
 
 for color, l in zip(colors, Ls):
 
@@ -191,22 +190,30 @@ for color, l in zip(colors, Ls):
     ax_sus.axvline(lambda_c_L, color=color, ls='--', lw=0.8)
 
 # ── Dress order-parameter plot ────────────────────────────────────────────────
-ax_op.set_xlabel(f"$\\lambda$ ({axis_name[1]})", fontsize=13)
-ax_op.set_ylabel(r"$\langle M \rangle$", fontsize=13)
-ax_op.set_title(f"{model_name} — order parameter", fontsize=13)
+ax_op.set_xlabel(f"$h$ ({axis_name[1]})", fontsize=13)
+ax_op.set_ylabel(r"$\\langle M \\rangle$", fontsize=13)
+ax_op.text(0.72, 0.7, "a)", fontsize=12)
 ax_op.legend(fontsize=10)
-fig_op.tight_layout()
-fig_op.savefig(f"{path_to_figures}/{model_name}_order_parameter_fss.png", dpi=300)
-print("Saved order-parameter figure.")
+ax_op.grid(True, alpha=0.3)
 
-# ── Dress susceptibility plot ─────────────────────────────────────────────────
-ax_sus.set_xlabel(f"$\\lambda$ ({axis_name[1]})", fontsize=13)
-ax_sus.set_ylabel(r"$\chi = \partial\langle M\rangle / \partial\lambda$", fontsize=13)
-ax_sus.set_title(f"{model_name} — magnetic susceptibility", fontsize=13)
+ax_sus.set_xlabel(f"$h$ ({axis_name[1]})", fontsize=13)
+ax_sus.set_ylabel(r"$\\chi = \\partial \\langle M \\rangle / \\partial h$", fontsize=13)
+ax_sus.text(0.72, 26, "b)", fontsize=12)
 ax_sus.legend(fontsize=10)
-fig_sus.tight_layout()
-fig_sus.savefig(f"{path_to_figures}/{model_name}_susceptibility_fss.png", dpi=300)
-print("Saved susceptibility figure.")
+ax_sus.grid(True, alpha=0.3)
+
+fig_07.tight_layout()
+fig_07.savefig(f"{path_to_figures}/fig07.pdf", dpi=300)
+# print("Saved order-parameter figure.")
+
+# # ── Dress susceptibility plot ─────────────────────────────────────────────────
+# ax_sus.set_xlabel(f"$h$ ({axis_name[1]})", fontsize=13)
+# ax_sus.set_ylabel(r"$\\chi = \\partial \\langle M \\rangle / \\partial h$", fontsize=13)
+# ax_sus.text(0.72, 26, "b)", fontsize=12)
+# ax_sus.legend(fontsize=10)
+# fig_sus.tight_layout()
+# fig_sus.savefig(f"{path_to_figures}/{model_name}_susceptibility_fss.png", dpi=300)
+# print("Saved susceptibility figure.")
 
 plt.close()
 
@@ -234,14 +241,16 @@ a_err, b_err, c_err = perr
 # Print the results
 print(f"Optimal parameters: crit g = {a_opt:.4f} ± {a_err:.4f}, amplitude = {b_opt:.4f} ± {b_err:.4f}, nu = {1/c_opt:.4f} ± {(c_err / c_opt**2):.4f}")
 
-xfit = np.linspace(0, 1.0/max(Ls), 100)
+xfit = np.linspace(0, 1.0/min(Ls), 100)
 yfit = pow_law(xfit, a_opt, b_opt, c_opt)
-fig, ax = plt.subplots(1,2)
+fig, ax = plt.subplots(1,2, figsize=(12, 5))
 ax[0].scatter(xdata, peak_lambdas, s=10, marker='+')
 ax[0].plot(xfit, yfit, '--', color='red')
 ax[0].scatter([0], [pow_law(0, a_opt, b_opt, c_opt)], marker='x', color='red', s=70)
-ax[0].text(0.05, 0.95, f"$g_c^{{\infty}} = {pow_law(0, a_opt, b_opt, c_opt):.4f} \pm {a_err:.4f}$")
-
+ax[0].text(0.01, 0.995, f"$g_c^{{\infty}} = {pow_law(0, a_opt, b_opt, c_opt):.4f} \pm {a_err:.4f}$")
+ax[0].text(0.01, 0.985, f"$\nu = {1/c_opt:.4f} \pm {(c_err / c_opt**2):.4f}$")
+ax[0].set_xlabel("$1/L$", fontsize=13)
+ax[0].set_ylabel(f"$h_c^L$", fontsize=13)
 
 ###### BETA EXTRAPOLATION ######
 from scipy.interpolate import interp1d
@@ -272,11 +281,14 @@ a_err, bnu_err = perr
 # Print the results
 print(f"Optimal parameters: constant = {a_opt:.4f} ± {a_err:.4f}, beta/nu = {bnu_opt:.4f} ± {bnu_err:.4f}")
 
-xfit = np.linspace(0, np.log(max(Ls)), 100)
+xfit = np.linspace(np.log(min(Ls))-0.1, np.log(max(Ls))+0.1, 100)
 yfit = power_law(xfit, a_opt, bnu_opt)
 ax[1].scatter(np.log(Ls), np.log(m_crit), s=10, marker='+')
 ax[1].plot(xfit, yfit, '--', color='red')
-ax[1].text(0.05, 0.95, f"$\beta/\nu = {bnu_opt:.4f} \pm {bnu_err:.4f}$")
+ax[1].text(2, -0.9, f"$\beta/\nu = {bnu_opt:.4f} \pm {bnu_err:.4f}$")
+ax[1].set_xlabel("$\log(L)$", fontsize=13)
+ax[1].set_ylabel(f"$\log(M(h_c^L))$", fontsize=13)
+
 plt.show()
 plt.savefig(f"{path_to_figures}/{model_name}_fss_critical_extrapolation.png", dpi=300)
-plt.savefig(f"{path_to_figures}/fig08.pdf", dpi=300)
+fig.savefig(f"{path_to_figures}/fig08.pdf", dpi=300)
