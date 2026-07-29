@@ -26,25 +26,24 @@ plt.rcParams.update({
     'figure.dpi'            : 300,                     # print quality
 
     # Font — match your paper's body font size (usually 9–10 pt)
-    'font.size'             : 7,    # base fallback
+    'font.size'             : 9,    # base fallback
     'font.family'           : 'sans-serif',
 
     # Axes
-    'axes.labelsize'        : 8,    # x/y labels
-    'axes.titlesize'        : 8,    # subplot titles
+    'axes.labelsize'        : 10,    # x/y labels
+    'axes.titlesize'        : 10,    # subplot titles
     'axes.linewidth'        : 0.6,  # thinner spines look cleaner at small size
 
     # Ticks
-    'xtick.labelsize'       : 7,
-    'ytick.labelsize'       : 7,
+    'xtick.labelsize'       : 9,
+    'ytick.labelsize'       : 9,
     'xtick.major.width'     : 0.6,
     'ytick.major.width'     : 0.6,
     'xtick.major.size'      : 3,
     'ytick.major.size'      : 3,
 
     # Legend
-    'legend.fontsize'       : 7,
-    'legend.title_fontsize' : 7,
+    'legend.fontsize'       : 8,
     'legend.framealpha'     : 0.8,
 
     # Lines & markers — thinner lines scale better when printed small
@@ -238,14 +237,14 @@ for color, l in zip(colors, Ls):
 ax_op.set_xlabel(f"$h$")
 ax_op.set_ylabel("$\\langle M \\rangle$")
 ax_op.text(0.74, 0.7, "(a)")
-ax_op.legend(fontsize=14)
+ax_op.legend()
 ax_op.grid(True, alpha=0.3)
 ax_op.set_xticks([0.8, 0.9, 1.0, 1.1, 1.2])
 
 ax_sus.set_xlabel(f"$h$")
 ax_sus.set_ylabel("$\\chi_M = \\frac{\\partial \\langle M \\rangle}{\\partial h}$")
 ax_sus.text(0.74, 26.5, "(b)")
-ax_sus.legend(fontsize=14)
+ax_sus.legend()
 ax_sus.grid(True, alpha=0.3)
 ax_sus.set_xticks([0.8, 0.9, 1.0, 1.1, 1.2])
 
@@ -304,7 +303,7 @@ ax[0].text(0.009, 0.985, f"$\\nu = {1/c_opt:.4f} \\pm {(c_err / c_opt**2):.4f}$"
 ax[0].set_xlabel("$1/L$")
 ax[0].set_ylabel(f"$h_c^L$")
 ax[0].grid(True, alpha=0.3)
-ax[0].text(-0.0025, 1.06, "(a)")
+ax[0].text(-0.0025, 1.014, "(a)")
 ax[0].set_xticks([0, 0.005, 0.01, 0.015, 0.02])
 ###### BETA EXTRAPOLATION ######
 from scipy.interpolate import interp1d
