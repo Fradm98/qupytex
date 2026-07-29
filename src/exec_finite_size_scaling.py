@@ -10,21 +10,47 @@ from qphaset.phases import (gstates_to_rdms_matrix_qs_mps, constructing_order_pa
 
 from qupytex_io import load_gstates, describe_manifest
 
-import matplotlib as mpl
+import matplotlib.pyplot as plt
 
-# --- Tick labels ---
-mpl.rcParams['xtick.labelsize'] = 16
-mpl.rcParams['ytick.labelsize'] = 16
+# Two square-ish subplots side by side, fitting a two-column page
+FIGWIDTH = 7.0        # inches — full text width of a two-column paper
+ASPECT   = 1.0        # square subplots
+COLS     = 2
+HSPACE   = 0.35       # vertical space reserved for labels
 
-# --- Axis labels (xlabel, ylabel) ---
-mpl.rcParams['axes.labelsize'] = 18
+fig_height = (FIGWIDTH / COLS) * ASPECT  # = 3.5 inches
 
-# --- General text (plt.text, annotations) ---
-mpl.rcParams['font.size'] = 18        # base font size; many elements inherit this
+plt.rcParams.update({
+    # Figure
+    'figure.figsize'        : (FIGWIDTH, fig_height),  # (7.0, 3.5)
+    'figure.dpi'            : 300,                     # print quality
 
-# --- Legend ---
-mpl.rcParams['legend.fontsize'] = 14
-mpl.rcParams['legend.title_fontsize'] = 14
+    # Font — match your paper's body font size (usually 9–10 pt)
+    'font.size'             : 7,    # base fallback
+    'font.family'           : 'sans-serif',
+
+    # Axes
+    'axes.labelsize'        : 8,    # x/y labels
+    'axes.titlesize'        : 8,    # subplot titles
+    'axes.linewidth'        : 0.6,  # thinner spines look cleaner at small size
+
+    # Ticks
+    'xtick.labelsize'       : 7,
+    'ytick.labelsize'       : 7,
+    'xtick.major.width'     : 0.6,
+    'ytick.major.width'     : 0.6,
+    'xtick.major.size'      : 3,
+    'ytick.major.size'      : 3,
+
+    # Legend
+    'legend.fontsize'       : 7,
+    'legend.title_fontsize' : 7,
+    'legend.framealpha'     : 0.8,
+
+    # Lines & markers — thinner lines scale better when printed small
+    'lines.linewidth'       : 1.0,
+    'lines.markersize'      : 3,
+})
 
 
 # -- Pauli matrices ---
@@ -95,7 +121,9 @@ lam_vals     = []   # lambda values for each L
 mag_vals     = []
 peak_idxs    = []
 
-fig_07,  (ax_op, ax_sus)  = plt.subplots(1, 2, figsize=(9, 5))
+fig_07,  (ax_op, ax_sus)  = plt.subplots(1, 2,
+                         figsize=(FIGWIDTH, fig_height),
+                         constrained_layout=True)
 
 for color, l in zip(colors, Ls):
 
@@ -221,8 +249,7 @@ ax_sus.legend(fontsize=14)
 ax_sus.grid(True, alpha=0.3)
 ax_sus.set_xticks([0.8, 0.9, 1.0, 1.1, 1.2])
 
-fig_07.tight_layout()
-fig_07.savefig(f"{path_to_figures}/fig07.pdf", dpi=300)
+fig_07.savefig(f"{path_to_figures}/fig07.pdf", dpi=300, bbox_inches='tight')
 # print("Saved order-parameter figure.")
 
 # # ── Dress susceptibility plot ─────────────────────────────────────────────────
@@ -262,7 +289,9 @@ print(f"Optimal parameters: crit g = {a_opt:.4f} ± {a_err:.4f}, amplitude = {b_
 
 xfit = np.linspace(0, 1.0/min(Ls), 100)
 yfit = pow_law(xfit, a_opt, b_opt, c_opt)
-fig, ax = plt.subplots(1,2, figsize=(9, 5))
+fig, ax = plt.subplots(1, 2,
+                         figsize=(FIGWIDTH, fig_height),
+                         constrained_layout=True)
 ax[0].scatter(xdata, peak_lambdas, s=40, marker='o', color='k')
 ax[0].errorbar(xdata, peak_lambdas, yerr=crit_vals_err, fmt='none', ecolor='k', capsize=7)
 ax[0].plot(xfit, yfit, '--', color='red', linewidth=1.5)
@@ -317,7 +346,6 @@ ax[1].set_ylabel(f"$\\log(M(h_c^L))$")
 ax[1].grid(True, alpha=0.3)
 ax[1].text(4.31, -0.914, "(b)")
 
-fig.tight_layout()
 plt.show()
-plt.savefig(f"{path_to_figures}/{model_name}_fss_critical_extrapolation.png", dpi=300)
+plt.savefig(f"{path_to_figures}/{model_name}_fss_critical_extrapolation.png", dpi=300, bbox_inches='tight')
 fig.savefig(f"{path_to_figures}/fig08.pdf", dpi=300)
