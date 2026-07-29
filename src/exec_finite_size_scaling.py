@@ -78,7 +78,7 @@ lam_vals     = []   # lambda values for each L
 mag_vals     = []
 peak_idxs    = []
 
-fig_07,  (ax_op, ax_sus)  = plt.subplots(1, 2, figsize=(8, 4))
+fig_07,  (ax_op, ax_sus)  = plt.subplots(1, 2, figsize=(9, 5))
 
 for color, l in zip(colors, Ls):
 
@@ -192,7 +192,7 @@ for color, l in zip(colors, Ls):
 # ── Dress order-parameter plot ────────────────────────────────────────────────
 ax_op.set_xlabel(f"$h$", fontsize=13)
 ax_op.set_ylabel("$\\langle M \\rangle$", fontsize=13)
-ax_op.text(3, 0.995, "(a)", fontsize=13)
+ax_op.text(0.74, 0.7, "(a)", fontsize=13)
 ax_op.legend(fontsize=10)
 ax_op.grid(True, alpha=0.3)
 
@@ -243,20 +243,21 @@ print(f"Optimal parameters: crit g = {a_opt:.4f} ± {a_err:.4f}, amplitude = {b_
 
 xfit = np.linspace(0, 1.0/min(Ls), 100)
 yfit = pow_law(xfit, a_opt, b_opt, c_opt)
-fig, ax = plt.subplots(1,2, figsize=(12, 5))
-ax[0].scatter(xdata, peak_lambdas, s=10, marker='o')
-ax[0].errorbar(xdata, peak_lambdas, yerr=crit_vals_err, fmt='none', ecolor='blue', alpha=0.5, capsize=7)
+fig, ax = plt.subplots(1,2, figsize=(12, 6))
+ax[0].scatter(xdata, peak_lambdas, s=20, marker='o', color='k')
+ax[0].errorbar(xdata, peak_lambdas, yerr=crit_vals_err, fmt='none', ecolor='k', capsize=7)
 ax[0].plot(xfit, yfit, '--', color='red')
 # ax[0].fill_between(xfit, yfit - pow_law(xfit, a_opt-a_err, b_opt-b_err, c_opt-c_err), yfit + pow_law(xfit, a_opt+a_err, b_opt+b_err, c_opt+c_err), color='red', alpha=0.2)
 ax[0].scatter([0], [pow_law(0, a_opt, b_opt, c_opt)], marker='x', color='darkred', s=70)
-ax[0].errorbar([0], [pow_law(0, a_opt, b_opt, c_opt)], yerr=[a_err], fmt='none', ecolor='darkred', alpha=0.5, capsize=7)
+ax[0].errorbar([0], [pow_law(0, a_opt, b_opt, c_opt)], yerr=[a_err], fmt='none', ecolor='darkred', capsize=7, zorder=-1)
 
-ax[0].text(0.01, 0.995, f"$g_c^{{\\infty}} = {pow_law(0, a_opt, b_opt, c_opt):.4f} \\pm {a_err:.4f}$", fontsize=14)
-ax[0].text(0.01, 0.985, f"$\\nu = {1/c_opt:.4f} \\pm {(c_err / c_opt**2):.4f}$", fontsize=14)
+ax[0].text(0.009, 0.995, f"$g_c^{{\\infty}} = {pow_law(0, a_opt, b_opt, c_opt):.4f} \\pm {a_err:.4f}$", fontsize=14)
+ax[0].text(0.009, 0.985, f"$\\nu = {1/c_opt:.4f} \\pm {(c_err / c_opt**2):.4f}$", fontsize=14)
 ax[0].set_xlabel("$1/L$", fontsize=13)
 ax[0].set_ylabel(f"$h_c^L$", fontsize=13)
 ax[0].grid(True, alpha=0.3)
-ax[0].text(-0.001, 1.01, "(a)", fontsize=13)
+ax[0].text(-0.0025, 1.06, "(a)", fontsize=13)
+ax[0].set_xticks([0, 0.005, 0.01, 0.015, 0.02])
 ###### BETA EXTRAPOLATION ######
 from scipy.interpolate import interp1d
 
@@ -288,14 +289,14 @@ print(f"Optimal parameters: constant = {a_opt:.4f} ± {a_err:.4f}, beta/nu = {bn
 
 xfit = np.linspace(np.log(min(Ls[2:]))-0.1, np.log(max(Ls[2:]))+0.1, 100)
 yfit = power_law(xfit, a_opt, bnu_opt)
-ax[1].scatter(np.log(Ls[2:]), np.log(m_crit[2:]), s=10, marker='o')
+ax[1].scatter(np.log(Ls[2:]), np.log(m_crit[2:]), s=20, marker='o', color='k')
 ax[1].plot(xfit, yfit, '--', color='red')
 # ax[1].fill_between(xfit, yfit - power_law(xfit, a_opt-a_err, bnu_opt-bnu_err), yfit + power_law(xfit, a_opt+a_err, bnu_opt+bnu_err), color='red', alpha=0.2)
-ax[1].text(4.8, -0.93, f"$\\beta/\\nu = {bnu_opt:.4f} \\pm {bnu_err:.4f}$", fontsize=14)
+ax[1].text(4.7, -0.93, f"$\\beta/\\nu = {bnu_opt:.4f} \\pm {bnu_err:.4f}$", fontsize=14)
 ax[1].set_xlabel("$\\log(L)$", fontsize=13)
 ax[1].set_ylabel(f"$\\log(M(h_c^L))$", fontsize=13)
 ax[1].grid(True, alpha=0.3)
-ax[1].text(2.5, -0.3, "(b)", fontsize=12)
+ax[1].text(4.3, -0.915, "(b)", fontsize=13)
 
 fig.tight_layout()
 plt.show()
