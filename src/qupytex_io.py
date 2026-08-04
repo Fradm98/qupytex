@@ -351,8 +351,13 @@ def find_manifest(path_to_tensor, model_name=None, l=None,
         name = os.path.basename(f)
         if model_name and model_name not in name:          continue
         if l           and f"_L_{l}_"        not in name: continue
-        if n1          and f"_n1_{n1}_"      not in name: continue
-        if n2          and f"_n2_{n2}_"      not in name: continue
+        if n1 and n2:
+            if f"_npoints_{n1}x{n2}_" not in name: continue
+        elif n1:
+            if f"_npoints_{n1}x"      not in name: continue
+        elif n2:
+            if f"x{n2}_"              not in name: continue
+
         if chi         and f"_chi_{chi}_"    not in name: continue
         matches.append(f)
 
