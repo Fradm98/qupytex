@@ -57,7 +57,7 @@ sites = [l // 2, l // 2 + 1]
 
 # ── Device ────────────────────────────────────────────────────────────────────
 device = 'pc'
-# device = 'ngt'
+device = 'ngt'
 
 if device == 'pc':
     device_path = "D:/work"
@@ -123,7 +123,7 @@ else:
 
 # ── Compute RDMs ──────────────────────────────────────────────────────────────
 print(f"Computing RDMs for sites {sites} ...")
-rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, generalized=True)
+rdms = gstates_to_rdms_matrix_qs_mps(gstates, sites=sites, shape=(n1,n2),generalized=True)
 # rdms shape: (n1*n2, D, D) — reshape to grid
 # D = rdms.shape[-1]
 # rdms = rdms.reshape(n1_loaded, n2_loaded, D, D)

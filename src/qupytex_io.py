@@ -27,6 +27,9 @@ Public API
               sites, model_name, l, chi, dmrg_params=None, extra=None) -> path
     load_rdms(path_to_rdms, base_filename,
               lambda1_range=None, lambda2_range=None) -> data_dict
+
+    # Recovery
+    rebuild_manifest(path_to_tensor, base_filename) -> manifest dict
 """
 
 import os
@@ -552,3 +555,122 @@ def load_rdms(path_to_rdms, base_filename,
         dmrg_params = json.loads(bytes(data["meta_dmrg"]).decode()),
         extra       = extra,
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Manifest recovery
+# ─────────────────────────────────────────────────────────────────────────────
+
+def rebuild_manifest(path_to_tensor, base_filename):
+    """
+    Reconstruct a missing manifest from the chunk files that are still on disk.
+
+    All metadata (n1, n2, l, d, chi, model_name, dmrg_params, params_grid)
+    is read directly from the chunks, which are self-contained.  The rebuilt
+    manifest is written to the standard path and is identical in structure to
+    one produced by save_gstates().
+
+    Parameters
+    ----------
+    path_to_tensor : str
+        Directory containing the chunk files.
+    base_filename : str
+        Stem shared by all chunk files (no extension).
+        e.g. "ANNNI_L_50_lambda_1_0.01-1.5_lambda_2_0.01-1.5_npoints_64x64_chi_50_eps_0.01"
+
+    Returns
+    -------
+    dict  – the rebuilt manifest (also written to disk).
+    """
+    # ── discover chunk files ──────────────────────────────────────────────────
+    pattern = os.path.join(path_to_tensor, f"{base_filename}.chunk_*.pkl.gz")
+    chunk_files = sorted(glob.glob(pattern))
+
+    if not chunk_files:
+        raise FileNotFoundError(
+            f"No chunk files found matching:\n  {pattern}"
+        )
+    print(f"[rebuild_manifest] found {len(chunk_files)} chunk(s)")
+
+    # ── load every chunk and collect metadata ─────────────────────────────────
+    chunk_registry = []
+    params_rows    = []   # will be stacked into params_grid
+    meta           = None
+
+    for chunk_file in chunk_files:
+        print(f"  reading {os.path.basename(chunk_file)} ...")
+        cdata = _gz_load(chunk_file)
+
+        # grab scalar metadata from first chunk (all chunks agree)
+        if meta is None:
+            meta = dict(
+                n1          = cdata["n1"],
+                n2          = cdata["n2"],
+                l           = cdata["l"],
+                d           = cdata["d"],
+                chi         = cdata["chi"],
+                model_name  = cdata["model_name"],
+                dmrg_params = cdata.get("dmrg_params", {}),
+            )
+
+        chunk_params = cdata["params"]          # (rows_in_chunk, n2, 2)
+        row_start    = int(cdata["row_start"])
+        row_end      = int(cdata["row_end"])
+
+        lam1_min = float(chunk_params[:, :, 0].min())
+        lam1_max = float(chunk_params[:, :, 0].max())
+        lam2_min = float(chunk_params[:, :, 1].min())
+        lam2_max = float(chunk_params[:, :, 1].max())
+
+        # derive chunk_idx from filename (chunk_NNN.pkl.gz)
+        fname     = os.path.basename(chunk_file)
+        chunk_idx = int(fname.split(".chunk_")[1].split(".")[0])
+
+        chunk_registry.append(dict(
+            chunk_idx  = chunk_idx,
+            row_start  = row_start,
+            row_end    = row_end,
+            lam1_range = (lam1_min, lam1_max),
+            lam2_range = (lam2_min, lam2_max),
+            filename   = chunk_file,            # current absolute path
+        ))
+        params_rows.append((row_start, chunk_params))
+
+    # ── sort registry and params by row_start ────────────────────────────────
+    chunk_registry.sort(key=lambda c: c["chunk_idx"])
+    params_rows.sort(key=lambda x: x[0])
+
+    # ── assemble full params_grid (n1, n2, 2) ────────────────────────────────
+    params_grid = np.concatenate([p for _, p in params_rows], axis=0)
+    n1_actual, n2_actual = params_grid.shape[:2]
+
+    # sanity-check against stored n1/n2
+    if n1_actual != meta["n1"] or n2_actual != meta["n2"]:
+        print(
+            f"[rebuild_manifest] WARNING: stored grid size {meta['n1']}×{meta['n2']} "
+            f"differs from assembled {n1_actual}×{n2_actual}. "
+            f"Using assembled values."
+        )
+        meta["n1"] = n1_actual
+        meta["n2"] = n2_actual
+
+    # ── write manifest ────────────────────────────────────────────────────────
+    manifest = dict(
+        base_filename = base_filename,
+        n1            = meta["n1"],
+        n2            = meta["n2"],
+        l             = meta["l"],
+        d             = meta["d"],
+        chi           = meta["chi"],
+        model_name    = meta["model_name"],
+        dmrg_params   = meta["dmrg_params"],
+        params_grid   = params_grid,
+        chunks        = chunk_registry,
+    )
+
+    mpath = _manifest_path(path_to_tensor, base_filename)
+    _gz_dump(manifest, mpath)
+    print(f"[rebuild_manifest] manifest written → {os.path.basename(mpath)}")
+    print(f"  grid={meta['n1']}×{meta['n2']}  L={meta['l']}  "
+          f"chi={meta['chi']}  chunks={len(chunk_registry)}")
+    return manifest
