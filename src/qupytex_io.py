@@ -21,6 +21,12 @@ Public API
     save_gstates(path_to_tensor, base_filename, data, max_file_gb=45)
     load_gstates(path_to_tensor, base_filename,
                  lambda1_range=None, lambda2_range=None) -> data_dict
+
+    # Zenodo-friendly RDM archive (single .npz, no pickle)
+    save_rdms(path_to_rdms, base_filename, rdms, params_grid,
+              sites, model_name, l, chi, dmrg_params=None, extra=None) -> path
+    load_rdms(path_to_rdms, base_filename,
+              lambda1_range=None, lambda2_range=None) -> data_dict
 """
 
 import os
@@ -374,3 +380,167 @@ def describe_manifest(path_to_tensor, base_filename):
         print(f"  [{c['chunk_idx']:03d}] rows [{c['row_start']:3d},{c['row_end']:3d}) "
               f"λ₁∈[{c['lam1_range'][0]:.3f},{c['lam1_range'][1]:.3f}] "
               f"λ₂∈[{c['lam2_range'][0]:.3f},{c['lam2_range'][1]:.3f}]")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RDM save / load  (Zenodo-friendly .npz, no pickle)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _rdms_path(directory, base):
+    return os.path.join(directory, f"{base}.rdms.npz")
+
+
+def save_rdms(path_to_rdms, base_filename, rdms, params_grid,
+              sites, model_name, l, chi, dmrg_params=None, extra=None):
+    """
+    Save a pre-computed RDM grid to a single compressed .npz file.
+
+    Parameters
+    ----------
+    path_to_rdms : str
+        Directory where the file is written (created if absent).
+    base_filename : str
+        Stem of the output file (no extension).
+        Typically the same stem used for the MPS chunk files.
+    rdms : np.ndarray, shape (n1, n2, D, D)
+        Reduced density matrices on the 2-D parameter grid.
+        D = d^len(sites).
+    params_grid : np.ndarray, shape (n1, n2, 2)
+        Parameter values; params_grid[i, j] = (λ₁, λ₂) for grid point (i,j).
+    sites : list[int]
+        Site indices used for the partial trace (stored as metadata).
+    model_name : str
+    l : int
+        System size.
+    chi : int
+        Bond dimension of the MPS the RDMs were computed from.
+    dmrg_params : dict or None
+        Arbitrary DMRG hyper-parameters (JSON-serialised as a string).
+    extra : dict or None
+        Any additional arrays to store verbatim (keys must be str,
+        values must be numpy-castable).  Stored with an 'extra_' prefix.
+
+    Returns
+    -------
+    str  – path of the written file.
+    """
+    os.makedirs(path_to_rdms, exist_ok=True)
+    path = _rdms_path(path_to_rdms, base_filename)
+
+    import json
+    payload = dict(
+        rdms        = np.asarray(rdms),
+        params_grid = np.asarray(params_grid),
+        sites       = np.asarray(sites, dtype=np.int32),
+        # scalar metadata packed into a tiny structured array
+        meta_l      = np.array([l],    dtype=np.int32),
+        meta_chi    = np.array([chi],  dtype=np.int32),
+        meta_n1     = np.array([params_grid.shape[0]], dtype=np.int32),
+        meta_n2     = np.array([params_grid.shape[1]], dtype=np.int32),
+        meta_model  = np.frombuffer(model_name.encode(), dtype=np.uint8),
+        meta_dmrg   = np.frombuffer(
+            json.dumps(dmrg_params or {}).encode(), dtype=np.uint8
+        ),
+    )
+    if extra:
+        for k, v in extra.items():
+            payload[f"extra_{k}"] = np.asarray(v)
+
+    np.savez_compressed(path, **payload)
+    n1, n2, D, _ = np.asarray(rdms).shape
+    print(f"[qupytex_io] saved RDMs → {os.path.basename(path)}"
+          f"  grid={n1}×{n2}  D={D}  sites={sites}")
+    return path
+
+
+def load_rdms(path_to_rdms, base_filename,
+              lambda1_range=None, lambda2_range=None):
+    """
+    Load RDMs from a .npz file, optionally slicing to a parameter sub-region.
+
+    Parameters
+    ----------
+    path_to_rdms : str
+        Directory containing the .npz file.
+    base_filename : str
+        Stem shared with save_rdms.
+    lambda1_range : (float, float) or None
+        Inclusive [min, max] for λ₁.  None = load all columns.
+    lambda2_range : (float, float) or None
+        Inclusive [min, max] for λ₂.  None = load all rows.
+
+    Returns
+    -------
+    dict with keys:
+        rdms         : np.ndarray, shape (n1_sub, n2_sub, D, D)
+        rdms_flat    : np.ndarray, shape (n1_sub*n2_sub, D, D)
+        params_grid  : np.ndarray, shape (n1_sub, n2_sub, 2)
+        params       : np.ndarray, shape (n1_sub*n2_sub, 2)
+        sites        : list[int]
+        row_indices  : np.ndarray  – original row indices selected
+        col_indices  : np.ndarray  – original col indices selected
+        n1_sub, n2_sub : int
+        l, chi, model_name, dmrg_params
+        extra        : dict  – any 'extra_*' arrays stored at save time
+    """
+    import json
+    path = _rdms_path(path_to_rdms, base_filename)
+    data = np.load(path, allow_pickle=False)
+
+    params_grid_full = data["params_grid"]        # (n1, n2, 2)
+    n1 = int(data["meta_n1"][0])
+    n2 = int(data["meta_n2"][0])
+
+    lam1_vals = params_grid_full[0, :, 0]         # shape (n2,)
+    lam2_vals = params_grid_full[:, 0, 1]         # shape (n1,)
+
+    def _make_mask(vals, rng):
+        if rng is None:
+            return np.ones(len(vals), dtype=bool)
+        lo, hi = rng
+        lo_i = np.argmin(np.abs(vals - lo))
+        hi_i = np.argmin(np.abs(vals - hi))
+        if lo_i > hi_i:
+            lo_i, hi_i = hi_i, lo_i
+        m = np.zeros(len(vals), dtype=bool)
+        m[lo_i:hi_i + 1] = True
+        return m
+
+    col_mask = _make_mask(lam1_vals, lambda1_range)
+    row_mask = _make_mask(lam2_vals, lambda2_range)
+
+    row_indices = np.where(row_mask)[0]
+    col_indices = np.where(col_mask)[0]
+
+    if len(row_indices) == 0 or len(col_indices) == 0:
+        raise ValueError("No grid points in the requested parameter range.")
+
+    n1_sub = len(row_indices)
+    n2_sub = len(col_indices)
+
+    rdms_full   = data["rdms"]                    # (n1, n2, D, D)
+    rdms_sub    = rdms_full[np.ix_(row_indices, col_indices)]  # (n1_sub, n2_sub, D, D)
+    params_sub  = params_grid_full[np.ix_(row_indices, col_indices)]
+
+    print(f"[qupytex_io] loaded RDMs  grid={n1_sub}×{n2_sub}"
+          f"  (rows {row_indices[0]}–{row_indices[-1]},"
+          f" cols {col_indices[0]}–{col_indices[-1]})")
+
+    extra = {k[len("extra_"):]: data[k]
+             for k in data.files if k.startswith("extra_")}
+
+    return dict(
+        rdms        = rdms_sub,
+        rdms_flat   = rdms_sub.reshape((-1,) + rdms_sub.shape[2:]),
+        params_grid = params_sub,
+        params      = params_sub.reshape(-1, 2),
+        sites       = data["sites"].tolist(),
+        row_indices = row_indices,
+        col_indices = col_indices,
+        n1_sub      = n1_sub,
+        n2_sub      = n2_sub,
+        l           = int(data["meta_l"][0]),
+        chi         = int(data["meta_chi"][0]),
+        model_name  = bytes(data["meta_model"]).decode(),
+        dmrg_params = json.loads(bytes(data["meta_dmrg"]).decode()),
+        extra       = extra,
+    )
