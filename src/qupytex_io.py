@@ -286,7 +286,8 @@ def load_gstates(path_to_tensor, base_filename,
     row_cache = {}    # global_row_idx → list of n2 states (full row)
 
     for chunk_meta in chunks_to_load:
-        cdata = _gz_load(chunk_meta["filename"])
+        chunk_path = _chunk_path(path_to_tensor, base_filename, chunk_meta["chunk_idx"])
+        cdata = _gz_load(chunk_path)
         for local_row, global_row in enumerate(
                 range(chunk_meta["row_start"], chunk_meta["row_end"])):
             if global_row in needed_rows:
@@ -305,7 +306,9 @@ def load_gstates(path_to_tensor, base_filename,
     params_flat  = params_sub.reshape(-1, 2)
 
     # recover stats from the last loaded chunk
-    last_chunk_data = _gz_load(chunks_to_load[-1]["filename"]) if chunks_to_load else {}
+    last_chunk_meta = chunks_to_load[-1] if chunks_to_load else None
+    last_chunk_path = _chunk_path(path_to_tensor, base_filename, last_chunk_meta["chunk_idx"]) if last_chunk_meta else None
+    last_chunk_data = _gz_load(last_chunk_path) if last_chunk_path else {}
     stats = last_chunk_data.get("stats")
 
     return dict(
@@ -336,6 +339,7 @@ def find_manifest(path_to_tensor, model_name=None, l=None,
     Find manifest files in a directory, optionally filtering by model/params.
     Useful when you're not sure of the exact filename.
 
+    Filenames are expected to contain '_npoints_{n1}x{n2}_'.
     For square grids you can pass n1=n2=n; for rectangular ones pass both
     n1 and n2 separately (both must match if provided).
     """
@@ -357,7 +361,6 @@ def find_manifest(path_to_tensor, model_name=None, l=None,
             if f"_npoints_{n1}x"      not in name: continue
         elif n2:
             if f"x{n2}_"              not in name: continue
-
         if chi         and f"_chi_{chi}_"    not in name: continue
         matches.append(f)
 
