@@ -33,11 +33,23 @@ Public API
 """
 
 import os
+import sys
 import math
 import pickle
 import gzip
 import numpy as np
 import glob
+
+# On Windows, stdout defaults to the legacy console codepage (e.g. cp1252)
+# whenever it isn't a real console (redirected to a file, some IDE runners,
+# etc.), which can't encode the λ/∈/→ characters used in the progress prints
+# below. That turns a long DMRG run's final save into a crash *after* all the
+# compute is done. Force UTF-8 so a multi-hour run never dies on a print.
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Internal helpers
