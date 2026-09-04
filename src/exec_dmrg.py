@@ -13,20 +13,24 @@ from qupytex_io import save_gstates
 
 # ── Model config ──────────────────────────────────────────────────────────────
 model_name = "ANNNI"
-l =100
+l = 50
 d = 2 # physical local dimension
 
-a = 0.005
+# a = 0.005
+# Jz = None
+# k_study = 0.001
+# lam1_i, lam1_f = k_study - 2*a, k_study + 2*a 
+# lam1_i, lam1_f = k_study - a, k_study + a 
+# params = np.linspace(lam1_i, lam1_f,round((lam1_f - lam1_i) / a) + 1), np.linspace(0.1,1.1,21) # upside-down
+# params = np.linspace(k_study, k_study, 1), np.linspace(0.9,1.1,21) # upside-down
+# params = np.linspace(k_study, k_study, 1), np.linspace(0.9,1.1,201) # upside-down
+# n1 = len(params[0])
+# n2 = len(params[1])
+
 Jz = None
-k_study = 0.001
-lam1_i, lam1_f = k_study - 2*a, k_study + 2*a 
-lam1_i, lam1_f = k_study - a, k_study + a 
-params = np.linspace(lam1_i, lam1_f,round((lam1_f - lam1_i) / a) + 1), np.linspace(0.1,1.1,21) # upside-down
-params = np.linspace(k_study, k_study, 1), np.linspace(0.9,1.1,21) # upside-down
-params = np.linspace(k_study, k_study, 1), np.linspace(0.9,1.1,201) # upside-down
-n1 = len(params[0])
-n2 = len(params[1])
-# params = np.linspace(0.001, 0.001, n1), np.linspace(0.1, 1.2, n2) # upside-down
+n1 = 64
+n2 = 64
+params = np.linspace(0.1, 1.2, n1), np.linspace(0.1, 1.2, n2) # upside-down
 
 # model_name = "Cluster"
 # l = 15
@@ -58,7 +62,7 @@ elif device == 'ngt':
 
 # ── DMRG params ───────────────────────────────────────────────────────────────
 chi = 50
-c1  = 1e-4
+c1  = 0.01
 defect = True
 
 dmrg_params = {
@@ -70,6 +74,13 @@ dmrg_params = {
     'd':         d,
     'max_hours': 16 / 3600,
     'defect': defect,
+    'n_sweeps': 2,
+    # Passed straight through to scipy.sparse.linalg.eigsh for the
+    # single-site eigensolver; controls the Lanczos subspace size (ncv),
+    # convergence tolerance and iteration budget. Set to None to fall
+    # back to scipy's defaults (ncv ~= 20), which can misconverge near
+    # (near-)degenerate ground states.
+    'eigsh_params': {'ncv': 40, 'tol': 1e-10, 'maxiter': 2000},
 }
 
 # ── Routing ───────────────────────────────────────────────────────────────────
@@ -101,8 +112,8 @@ lam2_min = float(params_grid[:, :, 1].min())
 lam2_max = float(params_grid[:, :, 1].max())
 
 
-Ls = [50,70,90,110,130,150]
-# Ls = [10,20]
+Ls = [50]
+# Ls = [50,70,90,110,130,150]
 for l in Ls:
 
     # ── Run DMRG ──────────────────────────────────────────────────────────────────

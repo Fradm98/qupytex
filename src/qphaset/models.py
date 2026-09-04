@@ -355,10 +355,15 @@ def drmg_gstate_mps(model, *, drmg_params={}, reps=3, guess_psi=None) -> MPS:
 def drmg_gstate_qs_mps(model:mps, dmrg_params={}) -> mps:
     """Compute the ground state (MPS) of the given model using
     the DMRG algorithm."""
-    
+
     # Assume the sites are all of the same nature.
     trunc_tol = dmrg_params.get('trunc_params').get('trunc_tol')
     trunc_chi = dmrg_params.get('trunc_params').get('trunc_chi')
-    energy, entropy, schmidt_vals, t_dmrg = model.DMRG(trunc_chi=trunc_chi, trunc_tol=trunc_tol, where=model.L//2, defect=dmrg_params["defect"])
-        
+    n_sweeps = dmrg_params.get('n_sweeps', 2)
+    eigsh_params = dmrg_params.get('eigsh_params')
+    energy, entropy, schmidt_vals, t_dmrg = model.DMRG(
+        trunc_chi=trunc_chi, trunc_tol=trunc_tol, where=model.L//2,
+        n_sweeps=n_sweeps, eigsh_params=eigsh_params, defect=dmrg_params["defect"],
+    )
+
     return model.sites
