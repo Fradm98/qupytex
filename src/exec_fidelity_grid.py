@@ -29,8 +29,19 @@ import time
 import argparse
 import numpy as np
 
+import inspect
+from qs_mps.mps_class import MPS
+
 from qphaset.annni import model_annni_qs_mps
 from qphaset import mps_fidelity as mf
+
+# Older qs-mps releases accept (and silently ignore) conv_criterion through **kwargs, which would
+# run DMRG with the 2-sweep default criterion. Refuse to start with such a version.
+if "conv_criterion" not in inspect.signature(MPS.DMRG).parameters:
+    import qs_mps
+    raise RuntimeError(
+        f"qs_mps at {qs_mps.__file__} is too old: DMRG has no conv_criterion option. "
+        "Install the repo checkout at commit 09734f3 or later: pip install -e /path/to/qs-mps")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--L", type=int, required=True)
