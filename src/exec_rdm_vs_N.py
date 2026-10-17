@@ -65,7 +65,8 @@ elif args.device == "ngt":
 project = os.path.expanduser(args.project) if args.project else f"{device_path}/projects/2_ANNNI"
 k, chi, dh = args.kappa, args.chi, args.dh
 assert all(N % 2 == 0 for N in args.Ns), "use even N"
-tag = f"rdm_vs_N_k_{k:g}_eps_0_chi_{chi}_dh_{dh:g}"
+# the fields are part of the file name, so that one process per field can share a project folder
+tag = f"rdm_vs_N_k_{k:g}_eps_0_chi_{chi}_dh_{dh:g}_h_{'-'.join(f'{h:g}' for h in args.hs)}"
 path_to_data = f"{project}/results/data/annni_rdm_vs_N"
 os.makedirs(path_to_data, exist_ok=True)
 
