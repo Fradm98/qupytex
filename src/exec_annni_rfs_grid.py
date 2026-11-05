@@ -1,0 +1,202 @@
+"""
+exec_annni_rfs_grid.py
+======================
+2D (kappa, h) DMRG scan of the ANNNI chain that stores the central k-site RDMs, as input
+for the reduced-fidelity-susceptibility (RFS) phase diagram (Fig. 4 of Mariella et al.,
+arXiv:2408.01400) and for the order-parameter discovery (OPD) of its Sec. 5.2.
+
+  H = -sum X_i X_{i+1} + kappa sum X_i X_{i+2} - h sum Z_i - eps (X_1 + X_2)
+
+(qs-mps ANNNI MPO, J = 1; eps pins the first two spins along x, as in the paper's runs).
+
+What is stored per grid point: the RDM of the central `--block` sites (default 6, 0-indexed
+sites [L/2-3, L/2+3), i.e. 1-indexed 23..28 for L = 50). Any smaller contiguous RDM, including
+the paper's "two middle sites" (1-indexed L/2, L/2+1), is obtained from it by partial trace in
+analyze_annni_rfs_opd.py. Also stored: energy, sweeps, mid-chain entropy, smallest kept
+Schmidt value at the mid bond (chi adequacy), wall time.
+
+Parallelization: each kappa column is an independent warm-started sweep in h, from h_max
+(start |up z ... up z>, PM-like) down to h_min. Columns run in a process pool with one BLAS
+thread per process (on this laptop one thread is as fast as four for chi = 64).
+
+Resumable: every column is saved after each point (col_XXX.npz + its last MPS); a restart
+continues where it stopped. Merge with analyze_annni_rfs_opd.py.
+
+Usage (from src/):
+  python exec_annni_rfs_grid.py --workers 4
+  python exec_annni_rfs_grid.py --L 12 --chi 16 --n1 4 --n2 4 --workers 2 --tag-suffix _smoke
+"""
+import os
+# One BLAS thread per worker. Must be set before numpy is imported (also in spawned children).
+for _v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")
+
+import sys
+import json
+import time
+import argparse
+import traceback
+import numpy as np
+from multiprocessing import Pool
+
+
+def parse_args(argv=None):
+    p = argparse.ArgumentParser()
+    p.add_argument("--L", type=int, default=50)
+    p.add_argument("--chi", type=int, default=64)
+    p.add_argument("--eps", type=float, default=0.01, help="boundary x-pin on sites 1, 2")
+    p.add_argument("--kmin", type=float, default=0.1)
+    p.add_argument("--kmax", type=float, default=1.0)
+    p.add_argument("--hmin", type=float, default=0.05)
+    p.add_argument("--hmax", type=float, default=0.75)
+    p.add_argument("--n1", type=int, default=64, help="number of kappa points")
+    p.add_argument("--n2", type=int, default=64, help="number of h points")
+    p.add_argument("--block", type=int, default=6, help="size of the stored central RDM")
+    p.add_argument("--n-sweeps", type=int, default=12)
+    p.add_argument("--conv-tol", type=float, default=1e-9)
+    p.add_argument("--eig-tol", type=float, default=1e-8)
+    p.add_argument("--ncv", type=int, default=20)
+    p.add_argument("--workers", type=int, default=4)
+    p.add_argument("--device", choices=["pc", "ngt"], default="pc")
+    p.add_argument("--project", default=None)
+    p.add_argument("--tag-suffix", default="")
+    p.add_argument("--cols", type=int, nargs="+", default=None,
+                   help="run only these column indices (0-based); the rest can be resumed later")
+    return p.parse_args(argv)
+
+
+def make_tag(a):
+    # The pinning field is part of the name: runs with eps = 0.01 and eps = 0 never share a folder.
+    pin = f"pinned_eps_{a.eps:g}" if a.eps != 0 else "unpinned_eps_0"
+    return (f"rfs_grid_{pin}_L_{a.L}_chi_{a.chi}"
+            f"_k_{a.kmin:g}-{a.kmax:g}_h_{a.hmin:g}-{a.hmax:g}_n_{a.n1}x{a.n2}"
+            f"_block_{a.block}{a.tag_suffix}")
+
+
+def out_dir(a):
+    root = {"pc": "C:/Users/HP/Desktop", "ngt": "/eos/user/f/fdimarca"}[a.device]
+    project = a.project or f"{root}/projects/2_ANNNI"
+    return f"{project}/results/data/annni_rfs_grid/{make_tag(a)}"
+
+
+def ground_state(k, h, init_sites, a):
+    from qphaset.annni import model_annni_qs_mps
+    model = model_annni_qs_mps(k, h, chi=a.chi, l=a.L, j1=1.0, c1=a.eps, d=2)
+    if init_sites is None:
+        up = np.array([1, 0], dtype=complex).reshape((1, 2, 1))
+        model.sites = [up.copy() for _ in range(a.L)]
+        model.enlarge_chi(noise_std=1e-6, seed=7)
+    else:
+        model.sites = [t.copy() for t in init_sites]
+    model.canonical_form()
+    _, entropy, schmidt, _ = model.DMRG(
+        trunc_chi=True, trunc_tol=False, where=a.L // 2, n_sweeps=a.n_sweeps,
+        eigsh_params={"ncv": a.ncv, "tol": a.eig_tol, "maxiter": 5000},
+        conv_criterion="mid_chain", conv_tol=a.conv_tol, DMRG2=True,
+    )
+    e = np.real(np.array(model.mid_chain_energies))
+    sites = [np.array(t) for t in model.sites]
+    s_mid = np.asarray(schmidt[-1]) if len(schmidt) else np.array([np.nan])
+    info = dict(E=float(e[-1]),
+                dE=float(abs(e[-1] - e[-2]) / abs(e[-1])) if len(e) > 1 else np.nan,
+                sweeps=len(e),
+                S_mid=float(entropy[-1]) if len(entropy) else np.nan,
+                smin=float(np.min(np.abs(s_mid))))
+    return sites, info
+
+
+def central_rdm(sites, L, block):
+    from qphaset.mps_fidelity import mixed_canonical, block_tensor
+    start = L // 2 - block // 2
+    stop = start + block
+    M = block_tensor(mixed_canonical(sites, start, stop), start, stop)
+    rho = M @ M.conj().T
+    rho = 0.5 * (rho + rho.conj().T)
+    return rho / np.trace(rho).real
+
+
+def save_npz(path, *args, **arrays):
+    tmp = path + ".tmp.npz"
+    np.savez(tmp, *args, **arrays)
+    os.replace(tmp, path)
+
+
+def run_column(job):
+    j, k, hs, argv = job
+    a = parse_args(argv)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    d = out_dir(a)
+    col_path = f"{d}/col_{j:03d}.npz"
+    state_path = f"{d}/col_{j:03d}_last_state.npz"
+    keys = ("E", "dE", "sweeps", "S_mid", "smin", "time")
+    D = 2 ** a.block
+
+    rdms, rec, prev = [], {kk: [] for kk in keys}, None
+    if os.path.exists(col_path):
+        with np.load(col_path) as z:
+            if bool(z["done"]):
+                return j, len(hs), 0.0
+            rdms = list(z["rdms"])
+            rec = {kk: list(z[kk]) for kk in keys}
+        if os.path.exists(state_path) and rdms:
+            with np.load(state_path) as z:
+                prev = [z[f"arr_{i}"] for i in range(len(z.files))]
+        else:
+            rdms, rec = [], {kk: [] for kk in keys}
+
+    t_col = time.time()
+    for i in range(len(rdms), len(hs)):
+        h = float(hs[i])
+        t0 = time.time()
+        try:
+            s, info = ground_state(k, h, prev, a)
+        except Exception:
+            print(f"[col {j}] DMRG failed at k={k:.4f} h={h:.4f}, restarting from product state\n"
+                  f"{traceback.format_exc()}", flush=True)
+            s, info = ground_state(k, h, None, a)
+        info["time"] = time.time() - t0
+        rdms.append(central_rdm(s, a.L, a.block))
+        for kk in keys:
+            rec[kk].append(info[kk])
+        prev = s
+        save_npz(state_path, *s)
+        save_npz(col_path, rdms=np.array(rdms).reshape(-1, D, D), kappa=k, h=hs[: i + 1],
+                 done=(i == len(hs) - 1), **{kk: np.array(v) for kk, v in rec.items()})
+    if os.path.exists(state_path):
+        os.remove(state_path)
+    return j, len(hs), time.time() - t_col
+
+
+def main():
+    a = parse_args()
+    d = out_dir(a)
+    os.makedirs(d, exist_ok=True)
+    kappas = np.round(np.linspace(a.kmin, a.kmax, a.n1), 10)
+    hs = np.round(np.linspace(a.hmax, a.hmin, a.n2), 10)        # descending: row 0 = h_max
+    meta = dict(vars(a), tag=make_tag(a), kappas=kappas.tolist(), hs=hs.tolist(),
+                block_sites_0idx=[a.L // 2 - a.block // 2 + i for i in range(a.block)],
+                hamiltonian="-sum XX + kappa sum X_i X_{i+2} - h sum Z - eps (X_1 + X_2)",
+                dmrg="qs-mps two-site, mid_chain convergence, start |up z> at h_max per column")
+    with open(f"{d}/meta.json", "w") as f:
+        json.dump(meta, f, indent=1)
+
+    # Interleave columns so a partial run already covers the whole kappa window.
+    order = sorted(range(a.n1), key=lambda j: (j % 8, j))
+    if a.cols:
+        order = [j for j in a.cols if 0 <= j < a.n1]
+    jobs = [(j, float(kappas[j]), hs, sys.argv[1:]) for j in order]
+    n_jobs = len(jobs)
+    print(f"── {make_tag(a)} ── {a.n1}x{a.n2} grid, running {n_jobs} columns, "
+          f"{a.workers} workers → {d}", flush=True)
+    t0, n_done = time.time(), 0
+    with Pool(a.workers) as pool:
+        for j, n, t in pool.imap_unordered(run_column, jobs):
+            n_done += 1
+            el = time.time() - t0
+            print(f"  col {j:3d} (kappa={kappas[j]:.4f}) done in {t / 60:.1f} min | "
+                  f"{n_done}/{n_jobs} cols, elapsed {el / 3600:.2f} h", flush=True)
+    print(f"Saved → {d}", flush=True)
+
+
+if __name__ == "__main__":
+    main()
