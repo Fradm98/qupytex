@@ -84,8 +84,17 @@ def rdms_matrix_laplacian(rdms):
 # g = -fidelity_laplacian(rdms, fidelity=log_fidelity, log=True)
 
 def phases_vfield(rdms_matrix, *, scale=2, grad=True, fidelity=None,
-                  log_g=False, method='fidelity'):
+                  log_g=False, method='fidelity', steps=None):
+    """g (library sign, <= 0) or its Sobel gradient (d/d col + i d/d row).
+
+    steps: optional (d_row, d_col), the parameter steps of the grid. Default None keeps
+    index units. With steps, g = sum_dir (fidelity second difference) / step_dir^2
+    (see fidelity_laplacian), and the gradient components are divided by their own
+    step (step / scale on the upsampled grid), so its angle is physical when d_row != d_col.
+    """
     assert scale in {1, 2}
+    if steps is not None and method != 'fidelity':
+        raise NotImplementedError("steps is only supported for method='fidelity'")
     # TODO Exclude boundaries, re-eval domain. Accept params_extend param
     # and return adjusted version of it.
     
@@ -112,6 +121,10 @@ def phases_vfield(rdms_matrix, *, scale=2, grad=True, fidelity=None,
                              log=(log_g if log_g else False))
             g = g[0]   # shape (n_rows-2,) after squeeze
 
+        d = None if steps is None else (steps[1] if is_1d_rows else steps[0])
+        if d is not None:
+            g = g / d ** 2
+
         if log_g:
             g = np.log(np.maximum(-g, 1e-6))
 
@@ -119,13 +132,13 @@ def phases_vfield(rdms_matrix, *, scale=2, grad=True, fidelity=None,
             return g
 
         # 1D gradient: simple first difference (central where possible)
-        g_grad = np.gradient(g)
+        g_grad = np.gradient(g) if d is None else np.gradient(g, d)
         return g_grad
 
     # ── 2D case: original logic ───────────────────────────────────────────────
     g = None
     if method == 'fidelity':
-        g = fidelity_laplacian(rdms_matrix, fidelity=fidelity)
+        g = fidelity_laplacian(rdms_matrix, fidelity=fidelity, steps=steps)
         g = np.log(np.maximum(-g, 1e-6)) if log_g else g
     elif method == 'tr_qfim':
         g = -rdms_lattice_tr_qfim(rdms_matrix)
@@ -142,7 +155,11 @@ def phases_vfield(rdms_matrix, *, scale=2, grad=True, fidelity=None,
             kernel = signal.convolve2d(kernel, SOBEL, boundary='symm', mode='same')
         else:
             kernel = SOBEL
-        return signal.convolve2d(g, kernel, boundary='symm', mode='same')
+        g_grad = signal.convolve2d(g, kernel, boundary='symm', mode='same')
+        if steps is not None:
+            d_row, d_col = steps[0] / scale, steps[1] / scale
+            g_grad = g_grad.real / d_col + 1j * g_grad.imag / d_row
+        return g_grad
 
     if scale > 1:
         assert scale == 2

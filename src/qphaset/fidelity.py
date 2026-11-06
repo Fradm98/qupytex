@@ -158,10 +158,16 @@ def fidelity_diff_xy(rdms, *, fidelity=None):
     return mat
 
 
-def fidelity_laplacian(rdms: np.ndarray, *, fidelity=None, log=False) -> np.ndarray:
+def fidelity_laplacian(rdms: np.ndarray, *, fidelity=None, log=False, steps=None) -> np.ndarray:
     """
     Compute the Laplacian of the fidelity. See fidelity_dxx for more information
     on the parameter rdms.
+
+    steps: optional (d_row, d_col), the parameter steps along the grid rows and columns.
+    By default the two directions are summed in index units, i.e. the result is
+    ~ -(chi_rr d_row^2 + chi_cc d_col^2), which overweights the direction with the
+    larger step when d_row != d_col. With steps, each direction is divided by its
+    step^2, giving ~ -(chi_rr + chi_cc) in physical units (independent of the grid).
     """
     dxx_params = dict(fidelity=fidelity, log=log)
     f1 = fidelity_dxx(rdms, **dxx_params)
@@ -180,7 +186,11 @@ def fidelity_laplacian(rdms: np.ndarray, *, fidelity=None, log=False) -> np.ndar
     else:
         f2 = fidelity_dxx(np.swapaxes(rdms, 0, 1), **dxx_params)
     f2 = np.swapaxes(f2, 0, 1)
-    return f2[:, 1:-1] + f1[1:-1, :]
+    f_rows, f_cols = f2[:, 1:-1], f1[1:-1, :]
+    if steps is not None:
+        d_row, d_col = steps
+        return f_rows / d_row ** 2 + f_cols / d_col ** 2
+    return f_rows + f_cols
 
 
 def compute_norm(mps1, mps2, prnt=False):

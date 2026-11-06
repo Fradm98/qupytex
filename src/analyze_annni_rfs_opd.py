@@ -186,13 +186,13 @@ def rfs_field(rdms, dk, dh, scale=1):
 
     Grid rows are h descending, columns kappa ascending. phases_vfield returns the Sobel
     gradient of the library's g_lib = sum (f - 1) = -g along (columns, rows); rows run
-    towards lower h, hence P = conj(grad g_lib) in index units. We then rescale each
-    component by its grid step so that angles are physical when dk != dh."""
-    grad = phases_vfield(rdms, scale=scale)
-    g = -phases_vfield(rdms, scale=scale, grad=False)
-    P = np.conj(grad)
-    P = P.real / dk + 1j * P.imag / dh
-    return g, P
+    towards lower h, hence P = conj(grad g_lib). With steps = (dh, dk) the library divides
+    each direction of g by its step^2 (g ~ chi_kk + chi_hh, independent of the grid) and each
+    gradient component by its step, so g and the angle of P are physical when dk != dh."""
+    steps = (dh, dk)                                   # (row step, column step)
+    grad = phases_vfield(rdms, scale=scale, steps=steps)
+    g = -phases_vfield(rdms, scale=scale, grad=False, steps=steps)
+    return g, np.conj(grad)
 
 
 # ── Plots ─────────────────────────────────────────────────────────────────────
