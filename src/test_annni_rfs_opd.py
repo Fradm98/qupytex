@@ -22,6 +22,7 @@ import os
 import sys
 import json
 import argparse
+import shutil
 import tempfile
 import numpy as np
 
@@ -342,32 +343,43 @@ def test_eps0_collapse(out):
 
 
 def test_join(full, out):
-    """Split a mock grid into two runs sharing one row (the second swept upwards, as Rydberg),
-    then join them: the result must equal the full grid, the shared row kept from the first run."""
+    """Split a mock grid like the Rydberg runs: A = low columns x top rows, B = low columns x
+    bottom rows (swept upwards), C = high columns x all rows (swept upwards); A/B share one row
+    and A, B / C share one column. Points repeated in a later run get a small energy offset.
+    Joining must reproduce the full grid, with repeated points taken from the earlier run, and
+    a missing block must be refused."""
     meta, kappas, hs, rdm6, diag = an.load_grid(full)
-    parts = {"A": (slice(0, 13), False), "B": (slice(12, None), True)}   # row 12 in both
+    n2, n1 = rdm6.shape[:2]
+    layout = {"A": (slice(0, 13), slice(0, 12), False), "B": (slice(12, n2), slice(0, 12), True),
+              "C": (slice(0, n2), slice(11, n1), True)}
+    seen = np.zeros((n2, n1), bool)
     dirs = []
-    for name, (sl, upward) in parts.items():
+    for name, (rs, cs, upward) in layout.items():
         d = os.path.join(out, f"join_{name}")
-        os.makedirs(d, exist_ok=True)
-        h = hs[sl][::-1] if upward else hs[sl]
+        shutil.rmtree(d, ignore_errors=True)                 # no stale columns from earlier runs
+        os.makedirs(d)
+        h = hs[rs][::-1] if upward else hs[rs]
         with open(f"{d}/meta.json", "w") as f:
-            json.dump(dict(meta, hs=h.tolist()), f)
-        for j, k in enumerate(kappas):
-            rd, E = rdm6[sl, j], diag["E"][sl, j].copy()
-            if name == "B":
-                E[0] += 1e-9                                  # the shared row differs slightly
+            json.dump(dict(meta, kappas=kappas[cs].tolist(), hs=h.tolist()), f)
+        for jj, j in enumerate(range(n1)[cs]):
+            rd, E = rdm6[rs, j], diag["E"][rs, j] + 1e-9 * seen[rs, j]   # repeated points differ slightly
             if upward:
                 rd, E = rd[::-1], E[::-1]
             one = np.ones(len(h))
-            np.savez(f"{d}/col_{j:03d}.npz", rdms=rd, kappa=k, h=h, done=True, E=E, dE=1e-10 * one,
-                     sweeps=3 * one, S_mid=one, smin=1e-9 * one, time=one)
+            np.savez(f"{d}/col_{jj:03d}.npz", rdms=rd, kappa=kappas[j], h=h, done=True, E=E,
+                     dE=1e-10 * one, sweeps=3 * one, S_mid=one, smin=1e-9 * one, time=one)
+        seen[rs, cs] = True
         dirs.append(d)
     m2, k2, h2, r2, d2 = an.load_grids(dirs)
     assert np.allclose(k2, kappas) and np.allclose(h2, hs) and np.array_equal(r2, rdm6)
-    assert np.array_equal(d2["E"], diag["E"]), "the shared row must be kept from the first run"
-    assert m2["hs"] == h2.tolist() and len(m2["joined_from"]) == 2
-    print("ok  join of two runs (one swept upwards) along h reproduces the full grid")
+    assert np.array_equal(d2["E"], diag["E"]), "repeated points must be kept from the earlier run"
+    assert m2["hs"] == h2.tolist() and m2["kappas"] == k2.tolist() and len(m2["joined_from"]) == 3
+    try:
+        an.load_grids(dirs[:1] + dirs[2:])                   # B missing: a hole in the union
+        raise AssertionError("a join with an uncovered block must be refused")
+    except RuntimeError as e:
+        assert "uncovered" in str(e)
+    print("ok  join of three runs along both parameters (two swept upwards) reproduces the full grid")
 
 
 def main():

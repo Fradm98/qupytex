@@ -192,38 +192,72 @@ def load_grid(data_dir, allow_partial=False):
     return meta, kappas, hs, rdms, diag
 
 
+def _union_axis(values, descending, name):
+    """Sorted union of grid values (merged within 1e-8) that must form one uniform lattice."""
+    v = np.sort(np.concatenate(values))
+    u = [v[0]]
+    for x in v[1:]:
+        if not np.isclose(x, u[-1], rtol=0, atol=1e-8):
+            u.append(x)
+    u = np.array(u)
+    if len(u) > 1:
+        step = np.diff(u)
+        if not np.allclose(step, step[0], rtol=1e-6, atol=1e-9):
+            raise RuntimeError(f"joined {name} values are not one uniform lattice "
+                               f"(steps {step.min():.6g}-{step.max():.6g})")
+    return u[::-1] if descending else u
+
+
+def _positions(sub, full, name):
+    idx = np.array([int(np.argmin(np.abs(full - x))) for x in sub])
+    if not np.allclose(full[idx], sub, rtol=0, atol=1e-8):
+        raise RuntimeError(f"{name} values off the joined lattice")
+    return idx
+
+
 def load_grids(dirs, allow_partial=False):
-    """load_grid for one folder, or several runs of the same model joined along the second
-    parameter (rows). They must share the column values and the row step; a row present in
-    two runs (e.g. the cold-start check at the seam) is compared and kept from the run listed
-    first."""
+    """load_grid for one folder, or several runs of the same model joined in both parameters
+    (columns and rows). Every run must sit on one common uniform lattice and together they must
+    cover the full union rectangle. A point present in several runs (e.g. the cold-start check
+    row / column at a seam) is compared between runs and kept from the run listed first."""
     parts = [load_grid(d, allow_partial) for d in dirs]
     if len(parts) == 1:
         return parts[0]
-    meta0, k0 = parts[0][0], parts[0][1]
-    for d, (m, k, *_rest) in zip(dirs[1:], parts[1:]):
-        same = all(m.get(x) == meta0.get(x) for x in ("model", "L", "chi", "block", "block_sites_0idx"))
-        if not same or len(k) != len(k0) or not np.allclose(k, k0):
-            raise RuntimeError(f"{d}: different model / columns from {dirs[0]}, cannot join")
-    hs = np.concatenate([p[2] for p in parts])
-    rd = np.concatenate([p[3] for p in parts])
-    dg = {kk: np.concatenate([p[4][kk] for p in parts]) for kk in parts[0][4]}
-    order = np.argsort(-hs, kind="stable")                  # rows descending; earlier run first on ties
-    hs, rd, dg = hs[order], rd[order], {kk: v[order] for kk, v in dg.items()}
-    dup = np.nonzero(np.isclose(np.diff(hs), 0, atol=1e-8))[0]
-    for i in dup:
-        drho = np.abs(rd[i] - rd[i + 1]).max(axis=(-1, -2)).max()
-        dE = np.nanmax(np.abs(dg["E"][i] - dg["E"][i + 1]))
-        print(f"[join] row {meta0['param_names'][1] if 'param_names' in meta0 else 'h'} = {hs[i]:.6g} "
-              f"in two runs: max |E diff| = {dE:.1e}, max |rho diff| = {drho:.1e}; keeping the first")
-    keep = np.setdiff1d(np.arange(len(hs)), dup + 1)
-    hs, rd, dg = hs[keep], rd[keep], {kk: v[keep] for kk, v in dg.items()}
-    step = -np.diff(hs)
-    if not np.allclose(step, step[0], rtol=1e-6, atol=1e-9):
-        raise RuntimeError(f"joined rows are not uniformly spaced (steps {step.min():.6g}-{step.max():.6g})")
-    meta = dict(meta0, hs=hs.tolist(), joined_from=[os.path.basename(os.path.normpath(d)) for d in dirs])
-    print(f"[join] {len(dirs)} runs -> {len(hs)} rows, {hs[-1]:.6g}-{hs[0]:.6g}, step {step[0]:.6g}")
-    return meta, k0, hs, rd, dg
+    meta0 = parts[0][0]
+    for d, p in zip(dirs[1:], parts[1:]):
+        if not all(p[0].get(x) == meta0.get(x) for x in ("model", "L", "chi", "block", "block_sites_0idx")):
+            raise RuntimeError(f"{d}: different model / L / chi / block from {dirs[0]}, cannot join")
+    names = meta0.get("param_names", ["kappa", "h"])
+    ks = _union_axis([p[1] for p in parts], False, names[0])
+    hs = _union_axis([p[2] for p in parts], True, names[1])            # rows descending
+    D = parts[0][3].shape[-1]
+    rd = np.full((len(hs), len(ks), D, D), np.nan, dtype=complex)
+    dg = {kk: np.full((len(hs), len(ks)), np.nan) for kk in parts[0][4]}
+    filled = np.zeros((len(hs), len(ks)), bool)
+    for d, (m, k, h, r, g) in zip(dirs, parts):
+        sel = np.ix_(_positions(h, hs, names[1]), _positions(k, ks, names[0]))
+        old = filled[sel]
+        if old.any():
+            dE = np.nanmax(np.abs(g["E"][old] - dg["E"][sel][old]))
+            drho = np.abs(r[old] - rd[sel][old]).max()
+            print(f"[join] {old.sum()} points of {os.path.basename(os.path.normpath(d))} already present: "
+                  f"max |E diff| = {dE:.1e}, max |rho diff| = {drho:.1e}; keeping the earlier run")
+        new = ~old
+        block = rd[sel]
+        block[new] = r[new]
+        rd[sel] = block
+        for kk in dg:
+            b = dg[kk][sel]
+            b[new] = g[kk][new]
+            dg[kk][sel] = b
+        filled[sel] = True
+    if not filled.all():
+        raise RuntimeError(f"the joined runs leave {(~filled).sum()} of {filled.size} lattice points uncovered")
+    meta = dict(meta0, kappas=ks.tolist(), hs=hs.tolist(),
+                joined_from=[os.path.basename(os.path.normpath(d)) for d in dirs])
+    print(f"[join] {len(dirs)} runs -> {len(hs)} x {len(ks)} grid: {names[0]} {ks[0]:.6g}-{ks[-1]:.6g}, "
+          f"{names[1]} {hs[-1]:.6g}-{hs[0]:.6g}")
+    return meta, ks, hs, rd, dg
 
 
 def central_positions(meta, k):
@@ -625,8 +659,8 @@ def main(argv=None):
     d0 = os.path.normpath(a.data_dir[0])
     tag = os.path.basename(d0)
     if len(a.data_dir) > 1:
-        p2 = meta.get("param_names", ["kappa", "h"])[1]
-        tag += f"_joined_{p2}_{hs.min():g}-{hs.max():g}"
+        p1, p2 = meta.get("param_names", ["kappa", "h"])
+        tag += f"_joined_{p1}_{kappas.min():g}-{kappas.max():g}_{p2}_{hs.min():g}-{hs.max():g}"
     fig_dir = a.fig_dir or os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
         os.path.dirname(d0)))), "figures", f"{AX['model']}_rfs_opd", tag)
     os.makedirs(fig_dir, exist_ok=True)
