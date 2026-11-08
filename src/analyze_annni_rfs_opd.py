@@ -109,7 +109,25 @@ def distance_to_lines(K, H, kmin, kmax):
     return d.reshape(K.shape)
 
 
+# ── Model awareness (set by load_grid from meta.json) ─────────────────────────
+# Theory lines / phases exist only for ANNNI; parity projection only where H has P = prod Z.
+PARAM_LABEL = {"kappa": r"$\kappa$", "h": r"$h$", "K": r"$K$", "Rb": r"$R_b/a$", "Delta": r"$\Delta/\Omega$"}
+PARITY_MODELS = ("annni", "cluster")
+AX = {"model": "annni", "x": r"$\kappa$", "y": r"$h$", "theory": True}
+
+
+def set_model(meta):
+    names = meta.get("param_names", ["kappa", "h"])
+    model = meta.get("model", "annni")
+    AX.update(model=model, x=PARAM_LABEL.get(names[0], names[0]), y=PARAM_LABEL.get(names[1], names[1]),
+              theory=model == "annni")
+
+
 def draw_lines(ax, extent, legend=True, show_pe=True, legend_loc="lower left"):
+    if not AX["theory"]:
+        ax.set_xlim(extent[0], extent[1])
+        ax.set_ylim(extent[2], extent[3])
+        return
     for name, (kk, hh) in line_samples(extent[0], extent[1]).items():
         m = np.isfinite(hh) & (hh >= extent[2]) & (hh <= extent[3])
         if m.sum() < 2:
@@ -133,7 +151,8 @@ def draw_lines(ax, extent, legend=True, show_pe=True, legend_loc="lower left"):
 def load_grid(data_dir, allow_partial=False):
     with open(os.path.join(data_dir, "meta.json")) as f:
         meta = json.load(f)
-    kappas, hs = np.array(meta["kappas"]), np.array(meta["hs"])
+    set_model(meta)
+    kappas, hs = np.array(meta["kappas"]), np.array(meta["hs"])     # hs in sweep order = row order
     n1, n2, D = len(kappas), len(hs), 2 ** meta["block"]
     rdms = np.full((n2, n1, D, D), np.nan, dtype=complex)
     diag = {kk: np.full((n2, n1), np.nan) for kk in ("E", "dE", "sweeps", "S_mid", "smin", "time")}
@@ -144,6 +163,8 @@ def load_grid(data_dir, allow_partial=False):
         j = int(os.path.basename(path)[4:7])
         with np.load(path) as z:
             n = len(z["rdms"])
+            if not np.allclose(z["h"], hs[:n]):
+                raise RuntimeError(f"{path}: stored h values do not follow meta['hs']")
             rdms[:n, j] = z["rdms"]
             for kk in diag:
                 diag[kk][:n, j] = z[kk]
@@ -165,14 +186,52 @@ def load_grid(data_dir, allow_partial=False):
         print(f"[partial] using complete columns {a}..{b - 1} (kappa {kappas[a]:.3f}-{kappas[b - 1]:.3f})")
         rdms, kappas = rdms[:, a:b], kappas[a:b]
         diag = {kk: v[:, a:b] for kk, v in diag.items()}
+    if hs[0] < hs[-1]:                        # swept upwards (e.g. Rydberg): rows -> descending
+        rdms, hs = rdms[::-1], hs[::-1]
+        diag = {kk: v[::-1] for kk, v in diag.items()}
     return meta, kappas, hs, rdms, diag
+
+
+def load_grids(dirs, allow_partial=False):
+    """load_grid for one folder, or several runs of the same model joined along the second
+    parameter (rows). They must share the column values and the row step; a row present in
+    two runs (e.g. the cold-start check at the seam) is compared and kept from the run listed
+    first."""
+    parts = [load_grid(d, allow_partial) for d in dirs]
+    if len(parts) == 1:
+        return parts[0]
+    meta0, k0 = parts[0][0], parts[0][1]
+    for d, (m, k, *_rest) in zip(dirs[1:], parts[1:]):
+        same = all(m.get(x) == meta0.get(x) for x in ("model", "L", "chi", "block", "block_sites_0idx"))
+        if not same or len(k) != len(k0) or not np.allclose(k, k0):
+            raise RuntimeError(f"{d}: different model / columns from {dirs[0]}, cannot join")
+    hs = np.concatenate([p[2] for p in parts])
+    rd = np.concatenate([p[3] for p in parts])
+    dg = {kk: np.concatenate([p[4][kk] for p in parts]) for kk in parts[0][4]}
+    order = np.argsort(-hs, kind="stable")                  # rows descending; earlier run first on ties
+    hs, rd, dg = hs[order], rd[order], {kk: v[order] for kk, v in dg.items()}
+    dup = np.nonzero(np.isclose(np.diff(hs), 0, atol=1e-8))[0]
+    for i in dup:
+        drho = np.abs(rd[i] - rd[i + 1]).max(axis=(-1, -2)).max()
+        dE = np.nanmax(np.abs(dg["E"][i] - dg["E"][i + 1]))
+        print(f"[join] row {meta0['param_names'][1] if 'param_names' in meta0 else 'h'} = {hs[i]:.6g} "
+              f"in two runs: max |E diff| = {dE:.1e}, max |rho diff| = {drho:.1e}; keeping the first")
+    keep = np.setdiff1d(np.arange(len(hs)), dup + 1)
+    hs, rd, dg = hs[keep], rd[keep], {kk: v[keep] for kk, v in dg.items()}
+    step = -np.diff(hs)
+    if not np.allclose(step, step[0], rtol=1e-6, atol=1e-9):
+        raise RuntimeError(f"joined rows are not uniformly spaced (steps {step.min():.6g}-{step.max():.6g})")
+    meta = dict(meta0, hs=hs.tolist(), joined_from=[os.path.basename(os.path.normpath(d)) for d in dirs])
+    print(f"[join] {len(dirs)} runs -> {len(hs)} rows, {hs[-1]:.6g}-{hs[0]:.6g}, step {step[0]:.6g}")
+    return meta, k0, hs, rd, dg
 
 
 def central_positions(meta, k):
     """Block positions of the k central sites; k = 2 gives the paper's two middle sites
-    (1-indexed L/2, L/2 + 1), k = 1 gives the site 1-indexed L/2."""
+    (1-indexed L/2, L/2 + 1), k = 1 gives the site 1-indexed L/2. For odd L the anchor is the
+    middle site (L - 1)/2 (0-indexed), so odd k is exactly centred; for even L it is L/2 - 1."""
     sites = list(meta["block_sites_0idx"])
-    p0 = sites.index(meta["L"] // 2 - 1)
+    p0 = sites.index((meta["L"] - 1) // 2)
     start = p0 - (k - 1) // 2
     pos = list(range(start, start + k))
     if pos[0] < 0 or pos[-1] >= len(sites):
@@ -201,8 +260,8 @@ def imshow_map(ax, Z, extent, cmap="plasma", vmin=None, vmax=None, lines=True, l
                    vmin=vmin, vmax=vmax, interpolation="nearest")
     if lines:
         draw_lines(ax, extent, legend=legend)
-    ax.set_xlabel(r"$\kappa$")
-    ax.set_ylabel(r"$h$")
+    ax.set_xlabel(AX["x"])
+    ax.set_ylabel(AX["y"])
     return im
 
 
@@ -222,8 +281,8 @@ def fig4(P_up, ext_inner, path):
                       arrowsize=0.7)
     axs[1].set_xlim(ext_inner[:2])
     axs[1].set_ylim(ext_inner[2:])
-    axs[1].set_xlabel(r"$\kappa$")
-    axs[1].set_ylabel(r"$h$")
+    axs[1].set_xlabel(AX["x"])
+    axs[1].set_ylabel(AX["y"])
     axs[1].set_title(r"(b) $P(\lambda)=-\nabla_\lambda g$")
     fig.tight_layout()
     for ext in ("png", "pdf"):
@@ -523,7 +582,8 @@ def summarize_obs(sol, k):
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser()
-    p.add_argument("--data-dir", default=None)
+    p.add_argument("--data-dir", nargs="+", default=None,
+                   help="one run folder, or several to join along the second parameter")
     p.add_argument("--fig-dir", default=None)
     p.add_argument("--allow-partial", action="store_true")
     p.add_argument("--ks", type=int, nargs="+", default=[1, 2, 3, 4])
@@ -557,14 +617,18 @@ def main(argv=None):
     a = parse_args(argv)
     if a.data_dir is None:
         import exec_annni_rfs_grid as ex
-        a.data_dir = ex.out_dir(ex.parse_args([
+        a.data_dir = [ex.out_dir(ex.parse_args([
             "--L", str(a.L), "--chi", str(a.chi), "--eps", str(a.eps), "--kmin", str(a.kmin),
             "--kmax", str(a.kmax), "--hmin", str(a.hmin), "--hmax", str(a.hmax), "--n1", str(a.n1),
-            "--n2", str(a.n2), "--block", str(a.block), "--tag-suffix", a.tag_suffix]))
-    meta, kappas, hs, rdm6, diag = load_grid(a.data_dir, a.allow_partial)
-    tag = os.path.basename(os.path.normpath(a.data_dir))
+            "--n2", str(a.n2), "--block", str(a.block), "--tag-suffix", a.tag_suffix]))]
+    meta, kappas, hs, rdm6, diag = load_grids(a.data_dir, a.allow_partial)
+    d0 = os.path.normpath(a.data_dir[0])
+    tag = os.path.basename(d0)
+    if len(a.data_dir) > 1:
+        p2 = meta.get("param_names", ["kappa", "h"])[1]
+        tag += f"_joined_{p2}_{hs.min():g}-{hs.max():g}"
     fig_dir = a.fig_dir or os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.dirname(os.path.normpath(a.data_dir))))), "figures", "annni_rfs_opd", tag)
+        os.path.dirname(d0)))), "figures", f"{AX['model']}_rfs_opd", tag)
     os.makedirs(fig_dir, exist_ok=True)
     n2, n1 = rdm6.shape[:2]
     nb = meta["block"]
@@ -582,8 +646,20 @@ def main(argv=None):
                     total_hours=float(np.nansum(diag["time"]) / 3600))
 
     # 0. Z2 parity: diagnose on the raw RDMs, then symmetrize everywhere if H is parity-symmetric
-    symmetric_H = float(meta["eps"]) == 0.0
-    apply_parity = {"auto": symmetric_H, "on": True, "off": False}[a.parity]
+    if AX["model"] in PARITY_MODELS:
+        symmetric_H = float(meta["eps"]) == 0.0
+        apply_parity = {"auto": symmetric_H, "on": True, "off": False}[a.parity]
+        apply_parity, parity_sum = parity_step(rdm6, nb, meta, a, symmetric_H, apply_parity, extent, fig_dir)
+        if apply_parity:
+            rdm6 = opd.parity_symmetrize(rdm6, nb)
+    else:
+        print(f"PARITY: skipped, the {AX['model']} H has no P = prod Z symmetry")
+        parity_sum = dict(mode="skipped", reason=f"{AX['model']} has no Z2 parity")
+    return main_after_parity(a, meta, tag, fig_dir, kappas, hs, rdm6, diag, nb, dk, dh, extent, ext_inner,
+                             n1, n2, diag_sum, parity_sum)
+
+
+def parity_step(rdm6, nb, meta, a, symmetric_H, apply_parity, extent, fig_dir):
     asym = opd.parity_asymmetry(rdm6, nb)
     broken = asym > PARITY_BROKEN
     plot_parity(asym, extent, apply_parity, f"{fig_dir}/parity_asymmetry")
@@ -601,9 +677,11 @@ def main(argv=None):
         print("WARNING: --parity on with eps != 0: H is not parity-symmetric, this removes real physics")
     if symmetric_H and not apply_parity and broken.any():
         print("WARNING: eps = 0 with broken RDMs left unsymmetrized: expect fake RFS lines at the collapse")
-    if apply_parity:
-        rdm6 = opd.parity_symmetrize(rdm6, nb)
+    return apply_parity, parity_sum
 
+
+def main_after_parity(a, meta, tag, fig_dir, kappas, hs, rdm6, diag, nb, dk, dh, extent, ext_inner,
+                      n1, n2, diag_sum, parity_sum):
     # k-site central RDMs
     ks = sorted(set(a.ks) | {1, 2})
     rhos = {k: opd.ptrace(rdm6, nb, central_positions(meta, k)) for k in ks}
@@ -617,8 +695,11 @@ def main(argv=None):
     # inner grid bookkeeping
     K, H = np.meshgrid(kappas[1:-1], hs[1:-1])
     shape_in = K.shape
-    phase = np.vectorize(lambda k_, h_: PHASE_CODE[theory_phase(k_, h_)])(K, H)
-    dist = distance_to_lines(K, H, kappas[0], kappas[-1])
+    if AX["theory"]:
+        phase = np.vectorize(lambda k_, h_: PHASE_CODE[theory_phase(k_, h_)])(K, H)
+        dist = distance_to_lines(K, H, kappas[0], kappas[-1])
+    else:                                     # no theory lines: no phase labels, no buffer
+        phase, dist = np.full(shape_in, -1), np.full(shape_in, np.inf)
     flat = lambda Z: Z.reshape(-1, *Z.shape[2:]) if Z.ndim > 2 else Z.ravel()
     rhos_in = {k: flat(rhos[k][1:-1, 1:-1]) for k in ks}
     R_in = {k: opd.pauli_coeffs(rhos_in[k], k) for k in ks}
@@ -640,20 +721,27 @@ def main(argv=None):
         fig.colorbar(im, ax=ax)
         ax.set_title(f"1-site {lab} (site L/2)")
     m = dist_flat > a.buffer
-    for name, code in PHASE_CODE.items():
-        s = m & (phase_flat == code)
-        if s.any():
-            axs[2].scatter(r1[s, 1], r1[s, 3], s=9, color=PHASE_COLOR[name], label=name,
-                           edgecolors="white", linewidths=0.3)
+    if AX["theory"]:
+        for name, code in PHASE_CODE.items():
+            s = m & (phase_flat == code)
+            if s.any():
+                axs[2].scatter(r1[s, 1], r1[s, 3], s=9, color=PHASE_COLOR[name], label=name,
+                               edgecolors="white", linewidths=0.3)
+        axs[2].set_title(f"1-site RDMs by theory phase (buffer {a.buffer})")
+        axs[2].legend(fontsize=8)
+    else:
+        sc = axs[2].scatter(r1[:, 1], r1[:, 3], s=6, c=H.ravel(), cmap="viridis")
+        fig.colorbar(sc, ax=axs[2], label=AX["y"])
+        axs[2].set_title("1-site RDMs (Bloch x-z plane)")
     axs[2].set_xlabel(r"$\langle\sigma^x\rangle$")
     axs[2].set_ylabel(r"$\langle\sigma^z\rangle$")
-    axs[2].set_title(f"1-site RDMs by theory phase (buffer {a.buffer})")
-    axs[2].legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(f"{fig_dir}/one_site_bloch.png")
     plt.close(fig)
 
-    regions = {"right_of_LP": K.ravel() >= a.opd_kmin, "full": np.ones(K.size, bool)}
+    regions = {"full": np.ones(K.size, bool)}
+    if AX["theory"]:
+        regions = {"right_of_LP": K.ravel() >= a.opd_kmin, **regions}
     etas = np.linspace(0, 2 * np.pi, a.n_eta, endpoint=False)
     for rname, rmask in regions.items():
         if rmask.sum() < 10:
@@ -747,17 +835,20 @@ def main(argv=None):
             reg["k"][str(k)] = info
         summary["regions"][rname] = reg
 
-    # 5. phase-pair separability on the right of the Lifshitz point
-    keep = (K.ravel() >= a.opd_kmin) & (dist_flat > a.buffer)
-    pairs = [("AP", "FP"), ("FP", "PM"), ("AP", "PM")]
-    summary["separability"] = dict(buffer=a.buffer, kmin=a.opd_kmin, results={
-        str(k): v for k, v in separability(R_in, rhos_in, phase_flat, keep, ks, pairs, shape_in,
-                                           a.indef_tol).items()})
-    plads = pair_ladders(R_in, phase_flat, keep, pairs, a.indef_tol)
-    if plads:
-        plot_ladder(list(plads.values()), list(plads.keys()), f"{fig_dir}/indefiniteness_ladder_phase_pairs",
-                    "Indefiniteness of A with theory-line labels (one phase vs another)")
-    summary["separability"]["indefiniteness_check"] = {n: ladder_json(l) for n, l in plads.items()}
+    # 5. phase-pair separability on the right of the Lifshitz point (needs theory phases)
+    if AX["theory"]:
+        keep = (K.ravel() >= a.opd_kmin) & (dist_flat > a.buffer)
+        pairs = [("AP", "FP"), ("FP", "PM"), ("AP", "PM")]
+        summary["separability"] = dict(buffer=a.buffer, kmin=a.opd_kmin, results={
+            str(k): v for k, v in separability(R_in, rhos_in, phase_flat, keep, ks, pairs, shape_in,
+                                               a.indef_tol).items()})
+        plads = pair_ladders(R_in, phase_flat, keep, pairs, a.indef_tol)
+        if plads:
+            plot_ladder(list(plads.values()), list(plads.keys()), f"{fig_dir}/indefiniteness_ladder_phase_pairs",
+                        "Indefiniteness of A with theory-line labels (one phase vs another)")
+        summary["separability"]["indefiniteness_check"] = {n: ladder_json(l) for n, l in plads.items()}
+    else:
+        summary["separability"] = None
 
     with open(f"{fig_dir}/summary.json", "w") as f:
         json.dump(summary, f, indent=1, default=float)
@@ -787,6 +878,8 @@ def print_summary(s):
                         f"M{c['index']}({c['alpha']:+.2f}) {c['theta1_over_pi']:+.3f},{c['theta2_over_pi']:+.3f}"
                         f" Psi+ {c['bell_overlaps']['Psi+']:.2f}" for c in v["components"])
                 print(line)
+    if s["separability"] is None:
+        return
     print(f"\nPhase-pair separability (kappa >= {s['separability']['kmin']}, buffer {s['separability']['buffer']}):")
     for pname, lad in s["separability"]["indefiniteness_check"].items():
         print_ladder(lad, f"theory labels {pname}")

@@ -341,6 +341,35 @@ def test_eps0_collapse(out):
     print(f"ok  eps=0 mock: {par['n_broken']} broken points found, projection applied automatically, <X> = 0")
 
 
+def test_join(full, out):
+    """Split a mock grid into two runs sharing one row (the second swept upwards, as Rydberg),
+    then join them: the result must equal the full grid, the shared row kept from the first run."""
+    meta, kappas, hs, rdm6, diag = an.load_grid(full)
+    parts = {"A": (slice(0, 13), False), "B": (slice(12, None), True)}   # row 12 in both
+    dirs = []
+    for name, (sl, upward) in parts.items():
+        d = os.path.join(out, f"join_{name}")
+        os.makedirs(d, exist_ok=True)
+        h = hs[sl][::-1] if upward else hs[sl]
+        with open(f"{d}/meta.json", "w") as f:
+            json.dump(dict(meta, hs=h.tolist()), f)
+        for j, k in enumerate(kappas):
+            rd, E = rdm6[sl, j], diag["E"][sl, j].copy()
+            if name == "B":
+                E[0] += 1e-9                                  # the shared row differs slightly
+            if upward:
+                rd, E = rd[::-1], E[::-1]
+            one = np.ones(len(h))
+            np.savez(f"{d}/col_{j:03d}.npz", rdms=rd, kappa=k, h=h, done=True, E=E, dE=1e-10 * one,
+                     sweeps=3 * one, S_mid=one, smin=1e-9 * one, time=one)
+        dirs.append(d)
+    m2, k2, h2, r2, d2 = an.load_grids(dirs)
+    assert np.allclose(k2, kappas) and np.allclose(h2, hs) and np.array_equal(r2, rdm6)
+    assert np.array_equal(d2["E"], diag["E"]), "the shared row must be kept from the first run"
+    assert m2["hs"] == h2.tolist() and len(m2["joined_from"]) == 2
+    print("ok  join of two runs (one swept upwards) along h reproduces the full grid")
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--out", default=None)
@@ -356,6 +385,7 @@ def main():
     test_eps0_collapse(out)
     test_ladder_fail_then_pass(os.path.join(out, "figures"))
     data = write_mock(os.path.join(out, "data"))
+    test_join(data, out)
     s = an.main(["--data-dir", data, "--fig-dir", os.path.join(out, "figures"), "--n-eta", "36"])
     check_mock_summary(s)
     assert not s["parity"]["applied"], "eps = 0.01 run must not be symmetrized under --parity auto"
